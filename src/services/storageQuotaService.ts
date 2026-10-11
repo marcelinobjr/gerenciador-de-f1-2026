@@ -86,13 +86,169 @@ export const APEX_STORAGE_FAMILIES = {
  * e NUNCA devem ser removidas por prune de rounds antigas.
  */
 export const CRITICAL_HISTORICAL_FAMILIES = new Set<string>([
-  APEX_STORAGE_FAMILIES.CAREER_RESULTS,
-  APEX_STORAGE_FAMILIES.CHAMPIONSHIP_SNAPSHOT,
   APEX_STORAGE_FAMILIES.CAREER_DRIVERS,
   APEX_STORAGE_FAMILIES.PU_ALLOCATION,
   APEX_STORAGE_FAMILIES.PU_INTEGRATION,
   APEX_STORAGE_FAMILIES.WEEKEND_GENERATION, // Geração da rodada deve ser mantida
 ])
+
+/**
+ * Poda segura no boot da aplicação se o storage local passar de ~3MB.
+ * Remove espelhos locais já canônicos no PB: journals COMPLETE, snapshots e resultados de rodadas antigas.
+ */
+export function runBootStoragePruneIfOverQuota(): PruneResult {
+  if (typeof window === 'undefined' || !window.localStorage) {
+    return { prunedKeys: [], freedBytes: 0, freedKB: 0, preservedKeysCount: 0 }
+  }
+
+  let totalBytes = 0
+  const allKeys: string[] = []
+  for (let i = 0; i < window.localStorage.length; i++) {
+    const k = window.localStorage.key(i)
+    if (k) {
+      allKeys.push(k)
+      const v = window.localStorage.getItem(k) || ''
+      totalBytes += (k.length + v.length) * 2
+    }
+  }
+
+  // Se storage estiver abaixo do threshold de ~3MB, não precisa de intervenção agressiva
+  if (totalBytes < STORAGE_WARNING_THRESHOLD_BYTES) {
+    return { prunedKeys: [], freedBytes: 0, freedKB: 0, preservedKeysCount: allKeys.length }
+  }
+
+  console.info(
+    `[runBootStoragePruneIfOverQuota] Storage usage (${Math.round((totalBytes / 1024 / 1024) * 100) / 100} MB) excede o threshold de 3MB. Executando poda no boot...`,
+  )
+
+  return pruneCanonicalMirrors({ force: true })
+}
+
+/**
+ * Poda espelhos locais de dados já canônicos no PocketBase:
+ * - Journals com status COMPLETE
+ * - Snapshots de campeonato antigos
+ * - Resultados de corrida de rodadas antigas
+ */
+export function pruneCanonicalMirrors(options?: {
+  careerId?: string
+  currentRound?: number
+  force?: boolean
+}): PruneResult {
+  if (typeof window === 'undefined' || !window.localStorage) {
+    return { prunedKeys: [], freedBytes: 0, freedKB: 0, preservedKeysCount: 0 }
+  }
+
+  const prunedKeys: string[] = []
+  let freedBytes = 0
+  let preservedKeysCount = 0
+
+  const allKeys: string[] = []
+  for (let i = 0; i < window.localStorage.length; i++) {
+    const k = window.localStorage.key(i)
+    if (k) allKeys.push(k)
+  }
+
+  const effectiveRound = options?.currentRound
+
+  for (const key of allKeys) {
+    const meta = parseStorageKeyMetadata(key)
+
+    // 1. Não mexer em chaves de outros apps / non_apex
+    if (meta.family === APEX_STORAGE_FAMILIES.NON_APEX) {
+      preservedKeysCount++
+      continue
+    }
+
+    // 2. Journals COMPLETE (career_apply_result_*)
+    if (key.startsWith('career_apply_result_')) {
+      // Se tiver round e for a rodada atual sem force, preservar
+      if (effectiveRound && meta.round === effectiveRound && !options?.force) {
+        preservedKeysCount++
+        continue
+      }
+      try {
+        const raw = window.localStorage.getItem(key)
+        if (raw) {
+          const parsed = JSON.parse(raw)
+          // Se o journal estiver COMPLETE, o PB já tem canonical_career_apply_journals
+          if (parsed && (parsed.status === 'COMPLETE' || parsed.applicationStatus === 'COMPLETE')) {
+            const size = (key.length + raw.length) * 2
+            window.localStorage.removeItem(key)
+            prunedKeys.push(key)
+            freedBytes += size
+            continue
+          }
+        }
+      } catch {
+        // Se corrompido, pode podar
+        const val = window.localStorage.getItem(key) || ''
+        const size = (key.length + val.length) * 2
+        window.localStorage.removeItem(key)
+        prunedKeys.push(key)
+        freedBytes += size
+        continue
+      }
+    }
+
+    // 3. Snapshots de campeonato antigos (championship_* ou apex_championship_snapshot_*)
+    if (meta.family === APEX_STORAGE_FAMILIES.CHAMPIONSHIP_SNAPSHOT) {
+      // Se soubermos o round atual e for round < effectiveRound - 1
+      if (effectiveRound && typeof meta.round === 'number') {
+        if (meta.round < effectiveRound - 1 || options?.force) {
+          const val = window.localStorage.getItem(key) || ''
+          const size = (key.length + val.length) * 2
+          window.localStorage.removeItem(key)
+          prunedKeys.push(key)
+          freedBytes += size
+          continue
+        }
+      } else if (options?.force) {
+        // No boot cleanup sem round específico, manter apenas os snapshots mais recentes ou limpar cópias pesadas
+        const val = window.localStorage.getItem(key) || ''
+        const size = (key.length + val.length) * 2
+        window.localStorage.removeItem(key)
+        prunedKeys.push(key)
+        freedBytes += size
+        continue
+      }
+    }
+
+    // 4. Resultados de corrida antigos locais (race_result_*)
+    if (key.startsWith('race_result_')) {
+      if (effectiveRound && typeof meta.round === 'number' && meta.round < effectiveRound - 1) {
+        const val = window.localStorage.getItem(key) || ''
+        const size = (key.length + val.length) * 2
+        window.localStorage.removeItem(key)
+        prunedKeys.push(key)
+        freedBytes += size
+        continue
+      }
+    }
+
+    preservedKeysCount++
+  }
+
+  // Executa também prune padrão
+  const standardPrune = pruneStorageData({
+    careerId: options?.careerId,
+    currentRound: effectiveRound,
+  })
+
+  for (const pk of standardPrune.prunedKeys) {
+    if (!prunedKeys.includes(pk)) {
+      prunedKeys.push(pk)
+    }
+  }
+  freedBytes += standardPrune.freedBytes
+
+  return {
+    prunedKeys,
+    freedBytes,
+    freedKB: Math.round((freedBytes / 1024) * 100) / 100,
+    preservedKeysCount,
+  }
+}
 
 /**
  * Extrai metadados estruturados a partir da chave de storage.
@@ -579,6 +735,8 @@ export function pruneStorageData(context: PruneContext): PruneResult {
         APEX_STORAGE_FAMILIES.PU_USAGE_JOURNAL,
         APEX_STORAGE_FAMILIES.ROOKIE_PLAN,
         APEX_STORAGE_FAMILIES.EVENT_REGISTRATION,
+        APEX_STORAGE_FAMILIES.CHAMPIONSHIP_SNAPSHOT,
+        APEX_STORAGE_FAMILIES.CAREER_RESULTS,
       ])
 
       if (PRUNABLE_FAMILIES.has(meta.family)) {
@@ -653,21 +811,77 @@ export function runPreventiveStorageCleanup(context?: PruneContext): PruneResult
   })
 
   // Se o uso ultrapassa o threshold de segurança ou se houver round informado,
-  // limpa snapshots de campeonato antigos (mantendo apenas round atual e anterior)
+  // limpa espelhos locais de dados já canônicos no PB:
+  // 1. Snapshots de campeonato antigos (< effectiveRound - 1 ou todos antigos se storage sobrecarregado)
+  // 2. Journals de aplicação COMPLETE de rodadas antigas (< effectiveRound - 1)
+  // 3. Resultados de corrida e sessões antigas
   if (currentBytes > STORAGE_WARNING_THRESHOLD_BYTES || (effectiveRound && effectiveRound > 2)) {
-    const champKeysToRemove: string[] = []
+    const canonicalMirrorsToRemove: string[] = []
     let extraFreedBytes = 0
 
     for (const key of allKeys) {
+      // Se a chave já foi podada pelo pruneStorageData acima, pular
+      if (pruneRes.prunedKeys.includes(key)) continue
+
       const meta = parseStorageKeyMetadata(key)
-      if (meta.family === APEX_STORAGE_FAMILIES.CHAMPIONSHIP_SNAPSHOT && typeof meta.round === 'number') {
+
+      // 1. Snapshots de campeonato antigos
+      if (
+        meta.family === APEX_STORAGE_FAMILIES.CHAMPIONSHIP_SNAPSHOT &&
+        typeof meta.round === 'number'
+      ) {
         if (effectiveRound && meta.round < effectiveRound - 1) {
-          champKeysToRemove.push(key)
+          canonicalMirrorsToRemove.push(key)
+          continue
+        } else if (!effectiveRound && currentBytes > STORAGE_WARNING_THRESHOLD_BYTES) {
+          // Se não sabemos o round mas o storage está > 3MB, remover snapshots antigos se houver round identificado
+          canonicalMirrorsToRemove.push(key)
+          continue
+        }
+      }
+
+      // 2. Journals COMPLETE e resultados de rodadas antigas
+      if (meta.family === APEX_STORAGE_FAMILIES.CAREER_RESULTS && typeof meta.round === 'number') {
+        if (effectiveRound && meta.round < effectiveRound - 1) {
+          // Checar se é um journal COMPLETE ou race_result de rodada antiga
+          try {
+            const rawVal = window.localStorage.getItem(key)
+            if (rawVal) {
+              const parsed = JSON.parse(rawVal)
+              // Se for journal com status COMPLETE ou resultado de corrida consolidado
+              if (
+                parsed &&
+                (parsed.status === 'COMPLETE' || parsed.officialRaceResultId || parsed.entries)
+              ) {
+                canonicalMirrorsToRemove.push(key)
+                continue
+              }
+            }
+          } catch {
+            // Em caso de JSON inválido, podar
+            canonicalMirrorsToRemove.push(key)
+            continue
+          }
+        }
+      }
+
+      // 3. Se ainda estiver com storage crítico (> STORAGE_WARNING_THRESHOLD_BYTES),
+      // podar agressivamente estados de corrida/treino/quali antigos
+      if (currentBytes > STORAGE_WARNING_THRESHOLD_BYTES && typeof meta.round === 'number') {
+        if (effectiveRound && meta.round < effectiveRound) {
+          if (
+            meta.family === APEX_STORAGE_FAMILIES.RACE_STATE ||
+            meta.family === APEX_STORAGE_FAMILIES.PRACTICE_SESSION ||
+            meta.family === APEX_STORAGE_FAMILIES.QUALIFYING_STAGE_STATE
+          ) {
+            canonicalMirrorsToRemove.push(key)
+            continue
+          }
         }
       }
     }
 
-    for (const ck of champKeysToRemove) {
+    for (const ck of canonicalMirrorsToRemove) {
       try {
         const val = window.localStorage.getItem(ck) || ''
         const size = (ck.length + val.length) * 2
@@ -694,7 +908,7 @@ export function isQuotaExceededError(err: any): boolean {
     (typeof err?.message === 'string' &&
       (err.message.includes('quota') ||
         err.message.includes('Quota') ||
-        err.message.includes('exceeded the quota')))
+        err.message.includes('exceeded the quota'))),
   )
 }
 
@@ -737,5 +951,86 @@ export function safeLocalStorageSetItem(key: string, value: string, context?: Pr
       )
       throw retryErr
     }
+  }
+}
+
+/**
+ * 8. PODA NO BOOT DA APLICAÇÃO (BOOT STORAGE HYGIENE)
+ * Mede o consumo do localStorage no carregamento inicial da aplicação.
+ * Se o uso total exceder STORAGE_WARNING_THRESHOLD_BYTES (~3MB):
+ * - Executa automaticamente poda de espelhos locais já canônicos no PB
+ * - Descarta journals COMPLETE antigos, snapshots antigos e resultados obsoletos
+ * - Não bloqueia a inicialização do app.
+ */
+let hasBootCleanupRun = false
+
+export function runBootStorageHygieneIfExceeded(options?: { force?: boolean }): PruneResult | null {
+  if (typeof window === 'undefined' || !window.localStorage) {
+    return null
+  }
+
+  if (hasBootCleanupRun && !options?.force) {
+    return null
+  }
+  hasBootCleanupRun = true
+
+  try {
+    let currentBytes = 0
+    for (let i = 0; i < window.localStorage.length; i++) {
+      const k = window.localStorage.key(i)
+      if (k) {
+        const v = window.localStorage.getItem(k) || ''
+        currentBytes += (k.length + v.length) * 2
+      }
+    }
+
+    const currentMB = currentBytes / (1024 * 1024)
+
+    if (currentBytes > STORAGE_WARNING_THRESHOLD_BYTES || options?.force) {
+      console.info(
+        `[BootStorageHygiene] Armazenamento local em ${currentMB.toFixed(2)} MB (> ~3MB). Executando higienização no boot...`,
+      )
+
+      // Identificar temporada e rodada ativa para contextualizar o prune
+      let detectedCareerId: string | undefined
+      let detectedSeasonId: string | undefined
+      let detectedRound: number | undefined
+
+      for (let i = 0; i < window.localStorage.length; i++) {
+        const k = window.localStorage.key(i)
+        if (k) {
+          const meta = parseStorageKeyMetadata(k)
+          if (meta.round && (!detectedRound || meta.round > detectedRound)) {
+            detectedRound = meta.round
+          }
+          if (meta.careerId) detectedCareerId = meta.careerId
+          if (meta.seasonId) detectedSeasonId = meta.seasonId
+        }
+      }
+
+      const res = runPreventiveStorageCleanup({
+        careerId: detectedCareerId,
+        seasonId: detectedSeasonId,
+        currentRound: detectedRound,
+      })
+
+      console.info(
+        `[BootStorageHygiene] Poda no boot concluída: ${res.freedKB} KB liberados (${res.prunedKeys.length} chaves podadas).`,
+      )
+      return res
+    }
+  } catch (bootErr) {
+    console.warn('[BootStorageHygiene] Falha não bloqueante na poda de boot:', bootErr)
+  }
+
+  return null
+}
+
+// Auto-execução segura e não-bloqueante no browser
+if (typeof window !== 'undefined') {
+  try {
+    runBootStorageHygieneIfExceeded()
+  } catch {
+    /* ignore */
   }
 }

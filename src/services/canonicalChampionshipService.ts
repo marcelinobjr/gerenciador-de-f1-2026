@@ -29,6 +29,12 @@ import { OFFICIAL_GRID_TEAMS } from '@/lib/f1-data'
 import { resolveCountryFlag } from '@/lib/country-flag'
 import pb from '@/lib/pocketbase/client'
 
+import {
+  safeLocalStorageSetItem,
+  isQuotaExceededError,
+  runPreventiveStorageCleanup,
+} from '@/services/storageQuotaService'
+
 export const CANONICAL_CHAMPIONSHIP_SNAPSHOT_PREFIX = 'championship'
 
 /**
@@ -251,41 +257,53 @@ export class CanonicalChampionshipService {
     if (typeof window === 'undefined' || !window.localStorage) return
     const key = this.buildSnapshotKey(snapshot.careerId, snapshot.season, snapshot.throughRound)
 
-    // Tentar primeiro salvar o snapshot completo
     try {
-      safeLocalStorageSetItem(key, JSON.stringify(snapshot), {
-        careerId: snapshot.careerId,
-        currentRound: snapshot.throughRound,
-      })
-      return
-    } catch (firstErr) {
-      if (!isQuotaExceededError(firstErr)) {
-        console.warn(`[CanonicalChampionshipService] Erro ao gravar snapshot '${key}':`, firstErr)
+      // Tentar salvar versão podada (slim) ou completa via safeLocalStorageSetItem
+      // Se o snapshot for grande, já tentamos com fallback gracioso
+      try {
+        safeLocalStorageSetItem(key, JSON.stringify(snapshot), {
+          careerId: snapshot.careerId,
+          currentRound: snapshot.throughRound,
+        })
+        return
+      } catch (firstErr) {
+        if (!isQuotaExceededError(firstErr)) {
+          console.warn(`[CanonicalChampionshipService] Erro ao gravar snapshot '${key}':`, firstErr)
+          return
+        }
+      }
+
+      // Se falhou por quota, podar espelhos e snapshots antigos
+      try {
+        runPreventiveStorageCleanup({
+          careerId: snapshot.careerId,
+          currentRound: snapshot.throughRound,
+        })
+      } catch {
+        /* ignore */
+      }
+
+      // Tentar salvar versão podada (slim)
+      const slim = this.toSlimSnapshot(snapshot)
+      try {
+        window.localStorage.setItem(key, JSON.stringify(slim))
+        console.info(
+          `[CanonicalChampionshipService] Snapshot gravado em versão podada (slim) para '${key}'.`,
+        )
+      } catch (slimErr) {
+        console.warn(
+          `[CanonicalChampionshipService] Cota excedida mesmo com snapshot podado para '${key}'. Degradação graciosa para backend-preferred (sem espelho local).`,
+          slimErr,
+        )
+        // Degradação graciosa para backend-preferred: nunca lançar QuotaExceededError
         return
       }
-    }
-
-    // Se falhou por quota, podar snapshots antigos (< snapshot.throughRound - 1)
-    try {
-      runPreventiveStorageCleanup({
-        careerId: snapshot.careerId,
-        currentRound: snapshot.throughRound,
-      })
-    } catch {
-      /* ignore */
-    }
-
-    // Tentar salvar versão podada (slim)
-    const slim = this.toSlimSnapshot(snapshot)
-    try {
-      window.localStorage.setItem(key, JSON.stringify(slim))
-      console.info(`[CanonicalChampionshipService] Snapshot gravado em versão podada (slim) para '${key}'.`)
-    } catch (slimErr) {
+    } catch (outerErr) {
+      // Defesa em profundidade: NUNCA permitir que QuotaExceededError trave o avanço esportivo
       console.warn(
-        `[CanonicalChampionshipService] Cota excedida mesmo com snapshot podado para '${key}'. Degradação graciosa para backend-preferred (sem espelho local).`,
-        slimErr,
+        `[CanonicalChampionshipService] Exceção capturada em saveSnapshot para '${key}'. Prosseguindo via backend-preferred:`,
+        outerErr,
       )
-      // Degradação graciosa: segue sem espelho local, a fonte canônica é o PocketBase.
     }
   }
 
@@ -1392,7 +1410,14 @@ export class CanonicalChampionshipService {
     playerTeamId?: string,
   ): ChampionshipSnapshot {
     const snapshot = this.rebuildChampionshipStandings(careerId, season, round, playerTeamId)
-    this.saveSnapshot(snapshot)
+    try {
+      this.saveSnapshot(snapshot)
+    } catch (saveErr) {
+      console.warn(
+        `[CanonicalChampionshipService] Falha ao persistir snapshot local para rodada ${round}, degradando para backend-preferred:`,
+        saveErr,
+      )
+    }
 
     // Sincronização assíncrona com PocketBase se collection existir
     this.syncSnapshotWithPocketBaseIfAvailable(snapshot).catch((e) => {

@@ -1287,12 +1287,19 @@ export default function RacePage() {
               setIsPersistingCareer(false)
               if (res.success) {
                 setRemoteQueryState('found')
-                canonicalChampionshipService.processAndPersistRoundChampionship(
-                  context.careerId,
-                  context.seasonYear,
-                  context.round,
-                  officialRaceResult.playerTeamId,
-                )
+                try {
+                  canonicalChampionshipService.processAndPersistRoundChampionship(
+                    context.careerId,
+                    context.seasonYear,
+                    context.round,
+                    officialRaceResult.playerTeamId,
+                  )
+                } catch (champErr) {
+                  console.warn(
+                    '[RacePage onRegisterInCareer] Aviso não-bloqueante ao gerar snapshot:',
+                    champErr,
+                  )
+                }
               } else {
                 setCareerPersistenceError(res.error)
                 // Se a persistência falhou em etapas, marcar reconciliação pendente

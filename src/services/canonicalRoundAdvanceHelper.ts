@@ -138,7 +138,7 @@ export async function advanceWeekendRound(
     }
 
     // ETAPA 4: CHAMPIONSHIP UPDATE
-    // Gera e persiste o snapshot canônico acumulado da rodada
+    // Gera e persiste o snapshot canônico acumulado da rodada com tolerância estrita a erros de cota (degradação graciosa para backend-preferred)
     let championshipStandings: any = null
     try {
       championshipStandings = canonicalChampionshipService.processAndPersistRoundChampionship(
@@ -147,17 +147,23 @@ export async function advanceWeekendRound(
         currentRound,
       )
     } catch (champErr: any) {
-      console.warn('[advanceWeekendRound] Aviso ao consolidar snapshot local de campeonato:', champErr)
-      // Se falhar localmente (ex: cota), tenta obter ou prosseguir já que a verdade canônica são os race_results
-      championshipStandings = canonicalChampionshipService.getChampionshipStandings(
-        canonicalCareerId,
-        seasonYear,
-        currentRound,
+      console.warn(
+        `[advanceWeekendRound] Aviso ao consolidar snapshot local de campeonato para rodada ${currentRound} (QuotaExceededError ou storage cheio). Degradação para backend-preferred:`,
+        champErr,
       )
+      try {
+        championshipStandings = canonicalChampionshipService.getChampionshipStandings(
+          canonicalCareerId,
+          seasonYear,
+          currentRound,
+        )
+      } catch {
+        /* ignore */
+      }
     }
 
     if (!championshipStandings) {
-      console.warn(
+      console.info(
         `[advanceWeekendRound] Classificação do campeonato não pôde ser instanciada em memória para a rodada ${currentRound}, prosseguindo via backend.`,
       )
     }

@@ -181,7 +181,7 @@ export class CanonicalCareerPersistenceService {
         window.localStorage.setItem(key, JSON.stringify(slimJournal))
       } catch (quotaErr) {
         console.warn(
-          `[CareerPersistence] Falha de cota no localStorage ao salvar journal (cache local: ${key}):`,
+          `[CareerPersistence] Falha de cota no localStorage ao salvar journal (cache local: ${key}). Degradação graciosa para backend:`,
           quotaErr,
         )
       }
