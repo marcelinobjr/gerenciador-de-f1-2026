@@ -566,7 +566,10 @@ export class DriverMoraleService {
         const updateKey = `driver_morale_applied_${career}_${season}_${round}${session}_${cId}`
         localStorage.setItem(updateKey, payload)
       } catch (e) {
-        console.warn(`[DriverMoraleService] Failed to set update flag for ${cId}:`, e)
+        console.warn(
+          `[DriverMoraleService] Quota/Storage warning setting update flag for ${cId} (tolerated):`,
+          e,
+        )
       }
     }
   }
@@ -644,8 +647,10 @@ export class DriverMoraleService {
       try {
         localStorage.setItem(key, payload)
       } catch (e) {
-        console.warn(`[DriverMoraleService] Failed to set idempotency flag for ${cId}:`, e)
-        throw e
+        console.warn(
+          `[DriverMoraleService] Quota/Storage warning setting idempotency flag for ${cId} (tolerated):`,
+          e,
+        )
       }
     }
   }

@@ -208,6 +208,7 @@ export default function RacePage() {
           if (official) {
             processOfficialFound(official)
             // Consultar o backend para verificar se o journal precisa ser retomado
+            // Executado em background resiliente: não amarrado à desmontagem do componente
             canonicalCareerPersistenceService
               .getApplicationJournalFromBackend(
                 ctx.careerId,
@@ -216,9 +217,13 @@ export default function RacePage() {
                 ctx.variant,
               )
               .then((remoteJ) => {
-                if (!isMounted) return
-                if (!remoteJ || remoteJ.status !== 'COMPLETE') {
-                  setIsPersistingCareer(true)
+                if (
+                  !remoteJ ||
+                  remoteJ.status !== 'COMPLETE' ||
+                  (remoteJ.totalEntries > 0 &&
+                    remoteJ.appliedDriverIds.length < remoteJ.totalEntries)
+                ) {
+                  if (isMounted) setIsPersistingCareer(true)
                   canonicalCareerPersistenceService
                     .registerOfficialRaceResultInCareerAsync(official, { requireBackendSync: true })
                     .then((res) => {
@@ -228,18 +233,14 @@ export default function RacePage() {
                         setIsPersistingCareer(false)
                         if (res.success) {
                           setRemoteQueryState('found')
-                          canonicalChampionshipService.processAndPersistRoundChampionship(
-                            ctx.careerId,
-                            ctx.seasonYear,
-                            ctx.round,
-                            official.playerTeamId,
-                          )
                         }
                       }
                     })
                     .catch((resumeErr) => {
                       if (isMounted) {
                         setIsPersistingCareer(false)
+                        setCareerPersistenceStatus('FAILED')
+                        setCareerPersistenceError(resumeErr?.message || 'Falha ao retomar journal.')
                         console.warn(
                           '[RacePage] Erro ao retomar aplicação do journal da corrida:',
                           resumeErr,
@@ -248,7 +249,9 @@ export default function RacePage() {
                     })
                 }
               })
-              .catch(() => {})
+              .catch((err) => {
+                console.warn('[RacePage] Erro ao consultar journal para retomada:', err)
+              })
             return
           }
           // (2) Prioridade 2: Corrida em andamento ou concluída (backend-first via readCanonicalRaceStatePreferred)
@@ -385,18 +388,14 @@ export default function RacePage() {
                   setIsPersistingCareer(false)
                   if (res.success) {
                     setRemoteQueryState('found')
-                    canonicalChampionshipService.processAndPersistRoundChampionship(
-                      ctx.careerId,
-                      ctx.seasonYear,
-                      ctx.round,
-                      officialRaceResult.playerTeamId,
-                    )
                   }
                 }
               })
               .catch((err) => {
                 if (isMounted) {
                   setIsPersistingCareer(false)
+                  setCareerPersistenceStatus('FAILED')
+                  setCareerPersistenceError(err?.message || 'Falha ao retomar journal da rodada.')
                   console.warn('[RacePage] Erro ao retomar journal da rodada:', err)
                 }
               })
@@ -436,18 +435,16 @@ export default function RacePage() {
                     setIsPersistingCareer(false)
                     if (res.success) {
                       setRemoteQueryState('found')
-                      canonicalChampionshipService.processAndPersistRoundChampionship(
-                        ctx.careerId,
-                        ctx.seasonYear,
-                        ctx.round,
-                        remoteOfficial.playerTeamId,
-                      )
                     }
                   }
                 })
                 .catch((err) => {
                   if (isMounted) {
                     setIsPersistingCareer(false)
+                    setCareerPersistenceStatus('FAILED')
+                    setCareerPersistenceError(
+                      err?.message || 'Falha ao retomar journal do backend.',
+                    )
                     console.warn('[RacePage] Erro ao retomar journal a partir do backend:', err)
                   }
                 })
@@ -1185,8 +1182,33 @@ export default function RacePage() {
             !isReconciliationPending
           }
           isContinuing={isAdvancingRound}
-          onVerifyRemoteJournal={() => {
-            verifyRemoteJournalStatus(officialRaceResult, context)
+          onVerifyRemoteJournal={async () => {
+            const isComplete = await verifyRemoteJournalStatus(officialRaceResult, context)
+            if (!isComplete) {
+              // Disparar retomada explícita ao verificar se não estiver COMPLETE
+              try {
+                setIsPersistingCareer(true)
+                setCareerPersistenceStatus('APPLYING')
+                setCareerPersistenceError(undefined)
+                const res =
+                  await canonicalCareerPersistenceService.registerOfficialRaceResultInCareerAsync(
+                    officialRaceResult,
+                    { requireBackendSync: true },
+                  )
+                setCareerPersistenceStatus(res.journal.status)
+                setIsReconciliationPending(res.journal.status !== 'COMPLETE')
+                setIsPersistingCareer(false)
+                if (res.success) {
+                  setRemoteQueryState('found')
+                } else {
+                  setCareerPersistenceError(res.error)
+                }
+              } catch (retryErr: any) {
+                setIsPersistingCareer(false)
+                setCareerPersistenceStatus('FAILED')
+                setCareerPersistenceError(retryErr?.message || 'Falha ao retomar aplicação.')
+              }
+            }
           }}
           onExportDiagnostics={() => {
             try {

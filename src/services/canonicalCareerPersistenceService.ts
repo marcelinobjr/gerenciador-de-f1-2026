@@ -1455,8 +1455,24 @@ export class CanonicalCareerPersistenceService {
       startedAt: new Date().toISOString(),
     }
 
+    // Se já está COMPLETE e com todos os pilotos aplicados, retorno idempotente imediato
+    if (
+      journal.status === 'COMPLETE' &&
+      journal.totalEntries > 0 &&
+      journal.appliedDriverIds.length >= journal.totalEntries
+    ) {
+      return {
+        success: true,
+        alreadyRegistered: true,
+        persistedResult: existingResult,
+        journal,
+      }
+    }
+
     journal.status = 'APPLYING'
     journal.totalEntries = officialResult.entries.length
+    // Limpar lastError de tentativas prévias para a nova tentativa de retomada
+    journal.lastError = undefined
 
     // 2. CHECKPOINT INICIAL REMOTO AGUARDADO (antes de qualquer efeito em piloto)
     try {
@@ -1465,6 +1481,11 @@ export class CanonicalCareerPersistenceService {
       const errMsg = `[Checkpoint Inicial Falhou] ${initialErr?.message || 'Falha ao gravar checkpoint inicial no backend'}`
       journal.status = 'FAILED'
       journal.lastError = errMsg
+      try {
+        await this.saveApplicationJournalToBackend(journal, raceVariant)
+      } catch {
+        /* preservar erro original */
+      }
       if (options?.requireBackendSync) {
         return {
           success: false,
@@ -1516,10 +1537,12 @@ export class CanonicalCareerPersistenceService {
             ? season
             : parseInt(String(season).replace(/\D/g, ''), 10) || 2026
         const rNum = Number(round) || 1
+        // Filtro resiliente: career_id canônico ou ID da temporada (BUG-RACE-ENTRY-01A / BUG-APPLY-JOURNAL-STALL-01A)
+        const receiptFilter = `(career_id = "${careerId}" || career_id = "${(officialResult as any).seasonId || careerId}") && season = ${sNum} && round = ${rNum}`
         const existingReceipts = await pb
           .collection('canonical_driver_morale_receipts')
           .getFullList({
-            filter: `career_id = "${careerId}" && season = ${sNum} && round = ${rNum}`,
+            filter: receiptFilter,
             fields: 'driver_id,driver_slug,operation_key',
           })
 
@@ -1726,17 +1749,7 @@ export class CanonicalCareerPersistenceService {
       console.warn('[CareerPersistence] Aviso ao gerar snapshot do campeonato:', snapErr)
     }
 
-    // 7. SINCRONIZAR race_results NO BACKEND (Reconciliação da linha órfã com status COMPLETE)
-    const pbSync = await this.syncWithPocketBaseIfAvailable(persistedRecord, journal)
-    if (!pbSync.success && options?.requireBackendSync) {
-      console.warn(
-        '[CareerPersistence] Falha ao sincronizar race_results no backend:',
-        pbSync.error,
-      )
-      // Não falhar o journal já completo se for apenas erro de rede passageiro na tabela espelho, mas tentar registrar
-    }
-
-    // 8. CHECKPOINT FINAL REMOTO AGUARDADO (COMPLETE)
+    // 7. CHECKPOINT FINAL REMOTO AGUARDADO (COMPLETE)
     try {
       await this.saveApplicationJournalToBackend(journal, raceVariant)
     } catch (finalSaveErr: any) {
@@ -1758,6 +1771,15 @@ export class CanonicalCareerPersistenceService {
         }
       }
       throw new Error(errMsg)
+    }
+
+    // 8. SINCRONIZAR race_results NO BACKEND (Reconciliação da linha órfã com status COMPLETE)
+    const pbSync = await this.syncWithPocketBaseIfAvailable(persistedRecord, journal)
+    if (!pbSync.success && options?.requireBackendSync) {
+      console.warn(
+        '[CareerPersistence] Falha ao sincronizar race_results no backend:',
+        pbSync.error,
+      )
     }
 
     return {
