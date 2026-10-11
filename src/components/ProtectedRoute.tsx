@@ -18,7 +18,7 @@ export function ProtectedRoute() {
   }
 
   if (careerPhase === 'lobby') {
-    return <Navigate to="/lobby" replace />
+    return <Navigate to="/setup" replace />
   }
 
   return <Outlet />

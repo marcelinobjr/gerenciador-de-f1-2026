@@ -4,9 +4,7 @@ import { Toaster as Sonner } from '@/components/ui/sonner'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import { AuthProvider } from '@/contexts/AuthContext'
 import { CareerRoute } from '@/components/CareerRoute'
-import { LobbyRoute } from '@/components/LobbyRoute'
 import Layout from './components/Layout'
-import { LobbyLayout } from './components/LobbyLayout'
 
 // Pages
 import Index from './pages/Index'
@@ -27,7 +25,6 @@ import RegulationPage from './pages/RegulationPage'
 
 import InfrastructurePage from './pages/InfrastructurePage'
 import TeamSelectionPage from './pages/TeamSelection'
-import { LobbyPage } from './pages/LobbyPage'
 import DriversPage from './pages/DriversPage'
 import PaddockPage from './pages/PaddockPage'
 import TracksPage from './pages/TracksPage'
@@ -45,17 +42,12 @@ const App = () => (
           {/* 1. Rota Pública de Autenticação */}
           <Route path="/auth" element={<AuthPage />} />
 
-          {/* Rota legada de setup/instalador descontinuada: redireciona para o fluxo canônico (auth sem sessão -> /auth, logado com carreira -> /) */}
-          <Route path="/setup" element={<Navigate to="/" replace />} />
+          {/* 2. Setup Antigo / Seleção e Configuração de Carreira (TeamSelectionPage) */}
+          <Route path="/setup" element={<TeamSelectionPage />} />
 
-          {/* 2. Ambiente Lobby / Pré-Jogo (Guarded por LobbyRoute) */}
-          <Route element={<LobbyRoute />}>
-            <Route element={<LobbyLayout />}>
-              <Route path="/lobby" element={<LobbyPage />} />
-              <Route path="/selecionar-equipe" element={<LobbyPage />} />
-              <Route path="/admin" element={<AdminPage />} />
-            </Route>
-          </Route>
+          {/* Rotas legadas do lobby redirecionadas para o fluxo canônico */}
+          <Route path="/lobby" element={<Navigate to="/" replace />} />
+          <Route path="/selecionar-equipe" element={<Navigate to="/setup" replace />} />
 
           {/* 3. Ambiente Carreira (Guarded por CareerRoute) */}
           <Route element={<CareerRoute />}>

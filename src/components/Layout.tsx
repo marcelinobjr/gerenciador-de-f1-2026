@@ -40,10 +40,9 @@ export default function Layout() {
       setSettingsOpen(false)
       toast({
         title: 'Jogo reiniciado com sucesso',
-        description:
-          'Todo o progresso anterior foi zerado. Escolha ou crie sua nova equipe no Lobby!',
+        description: 'Todo o progresso anterior foi zerado. Escolha ou crie sua nova equipe!',
       })
-      navigate('/lobby', { replace: true })
+      navigate('/setup', { replace: true })
     } catch (err: any) {
       console.error('Erro ao reiniciar jogo:', err)
       toast({

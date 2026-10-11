@@ -20,7 +20,7 @@ export default function AuthPage() {
       if (careerPhase === 'career') {
         navigate('/', { replace: true })
       } else if (careerPhase === 'lobby') {
-        navigate('/lobby', { replace: true })
+        navigate('/setup', { replace: true })
       }
     }
   }, [careerPhase, navigate, expiredMessage])
@@ -91,11 +91,11 @@ export default function AuthPage() {
     try {
       const activeTeam = await login(email, password)
       // Navegação direta e imediata após login bem-sucedido:
-      // se tem carreira ativa vai para Central (/), se não tem vai para Lobby (/lobby)
+      // se tem carreira ativa vai para Central (/), se não tem vai para Setup (/setup)
       if (activeTeam && (activeTeam.id || activeTeam.name)) {
         navigate('/', { replace: true })
       } else {
-        navigate('/lobby', { replace: true })
+        navigate('/setup', { replace: true })
       }
     } catch (err: any) {
       console.error(err)
@@ -128,7 +128,7 @@ export default function AuthPage() {
       if (activeTeam && (activeTeam.id || activeTeam.name)) {
         navigate('/', { replace: true })
       } else {
-        navigate('/lobby', { replace: true })
+        navigate('/setup', { replace: true })
       }
     } catch (err: any) {
       console.error(err)
