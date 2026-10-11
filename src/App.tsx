@@ -31,7 +31,7 @@ import { LobbyPage } from './pages/LobbyPage'
 import DriversPage from './pages/DriversPage'
 import PaddockPage from './pages/PaddockPage'
 import TracksPage from './pages/TracksPage'
-import SetupPage from './pages/SetupPage'
+
 import AdminPage from './pages/AdminPage'
 import NotFound from './pages/NotFound'
 
@@ -45,8 +45,8 @@ const App = () => (
           {/* 1. Rota Pública de Autenticação */}
           <Route path="/auth" element={<AuthPage />} />
 
-          {/* Rota de Setup / Instalador guiado (acessível autenticado ou direto) */}
-          <Route path="/setup" element={<SetupPage />} />
+          {/* Rota legada /setup redireciona para o fluxo padrão de acordo com a sessão */}
+          <Route path="/setup" element={<Navigate to="/" replace />} />
 
           {/* 2. Ambiente Lobby / Pré-Jogo (Guarded por LobbyRoute) */}
           <Route element={<LobbyRoute />}>

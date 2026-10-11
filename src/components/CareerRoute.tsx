@@ -35,7 +35,7 @@ export function CareerRoute() {
   }
 
   if (careerPhase === 'lobby') {
-    return <Navigate to="/setup" replace />
+    return <Navigate to="/lobby" replace />
   }
 
   return <Outlet />
