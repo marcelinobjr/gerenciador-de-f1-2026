@@ -637,6 +637,7 @@ export default function RacePage() {
             ctx.round,
             alreadyOfficial.playerTeamId,
           )
+          await verifyRemoteJournalStatus(alreadyOfficial, ctx)
         } else {
           setCareerPersistenceError(persistRes.error)
         }
@@ -690,6 +691,7 @@ export default function RacePage() {
             ctx.round,
             official.playerTeamId,
           )
+          await verifyRemoteJournalStatus(official, ctx)
         } else {
           setCareerPersistenceError(persistRes.error)
         }
@@ -715,7 +717,7 @@ export default function RacePage() {
     } finally {
       setIsOfficializing(false)
     }
-  }, [sessionResolution])
+  }, [sessionResolution, verifyRemoteJournalStatus])
 
   // D) Avanço para o Próximo Fim de Semana (fluxo canônico)
   const handleAdvanceToNextWeekend = useCallback(async () => {
