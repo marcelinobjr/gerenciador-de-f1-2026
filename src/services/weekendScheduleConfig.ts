@@ -273,6 +273,7 @@ export function resolveSessionVisualState(params: {
   isSessionRunning?: boolean
   isSessionPaused?: boolean
   isSprintRound?: boolean
+  hasPersistedState?: boolean
 }): SessionVisualState {
   const {
     sessionId,
@@ -281,6 +282,7 @@ export function resolveSessionVisualState(params: {
     isSessionRunning,
     isSessionPaused,
     isSprintRound,
+    hasPersistedState,
   } = params
 
   const normalized = normalizeCompletedSessions(completedSessions)
@@ -308,6 +310,14 @@ export function resolveSessionVisualState(params: {
   const isUnlocked = isSessionUnlocked(sessionId, normalized, isSprint)
 
   if (isCurrentActive && isUnlocked) {
+    // Para sessões de corrida (race / sprint_race), só marcar 'active' ou 'paused' se houver estado real persistido/em execução
+    if (sessionId === 'race' || sessionId === 'sprint_race') {
+      if (isSessionRunning) return 'active'
+      if (isSessionPaused) return 'paused'
+      if (hasPersistedState) return 'active'
+      return 'available'
+    }
+
     if (isSessionRunning) return 'active'
     if (isSessionPaused) return 'paused'
     return 'active'

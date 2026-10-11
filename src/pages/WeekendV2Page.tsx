@@ -609,6 +609,7 @@ export default function WeekendV2Page() {
               const outcome = await canonicalQualifyingPersistenceService.readFinalGridPreferred(
                 canonicalCareerIdForQuali,
                 currentRound,
+                { fallbackSeasonId: season.id, seasonYear: season.year || 2026 },
               )
               if (outcome.data) {
                 hasQualiGrid = outcome.data
@@ -617,10 +618,54 @@ export default function WeekendV2Page() {
                   await canonicalQualifyingPersistenceService.readFinalGridPreferred(
                     season.id,
                     currentRound,
+                    {
+                      fallbackSeasonId: canonicalCareerIdForQuali,
+                      seasonYear: season.year || 2026,
+                    },
                   )
                 if (fallbackOutcome.data) {
                   hasQualiGrid = fallbackOutcome.data
                 }
+              }
+            } catch {
+              // ignore
+            }
+          }
+          // Se ainda não achou grid oficial montado, tentar recompor de Q1-Q3
+          if (!hasQualiGrid) {
+            try {
+              const [q1Res, q2Res, q3Res] = await Promise.all([
+                canonicalQualifyingPersistenceService.readStageResultPreferred(
+                  canonicalCareerIdForQuali,
+                  currentRound,
+                  'q1',
+                  { fallbackSeasonId: season.id, seasonYear: season.year || 2026 },
+                ),
+                canonicalQualifyingPersistenceService.readStageResultPreferred(
+                  canonicalCareerIdForQuali,
+                  currentRound,
+                  'q2',
+                  { fallbackSeasonId: season.id, seasonYear: season.year || 2026 },
+                ),
+                canonicalQualifyingPersistenceService.readStageResultPreferred(
+                  canonicalCareerIdForQuali,
+                  currentRound,
+                  'q3',
+                  { fallbackSeasonId: season.id, seasonYear: season.year || 2026 },
+                ),
+              ])
+              const r1 = q1Res.data
+              const r2 = q2Res.data
+              const r3 = q3Res.data
+              if (r1 && r2 && r3) {
+                hasQualiGrid = canonicalQualifyingPersistenceService.buildCombinedFinalGrid({
+                  seasonId: canonicalCareerIdForQuali,
+                  round: currentRound,
+                  q1Result: r1,
+                  q2Result: r2,
+                  q3Result: r3,
+                  persistResult: true,
+                })
               }
             } catch {
               // ignore
@@ -754,7 +799,10 @@ export default function WeekendV2Page() {
                             season.id,
                             currentRound,
                             'q1',
-                            { fallbackSeasonId: canonicalCareerId, seasonYear: season.year || 2026 },
+                            {
+                              fallbackSeasonId: canonicalCareerId,
+                              seasonYear: season.year || 2026,
+                            },
                           )
                         ).data
                       const r2 =
@@ -764,7 +812,10 @@ export default function WeekendV2Page() {
                             season.id,
                             currentRound,
                             'q2',
-                            { fallbackSeasonId: canonicalCareerId, seasonYear: season.year || 2026 },
+                            {
+                              fallbackSeasonId: canonicalCareerId,
+                              seasonYear: season.year || 2026,
+                            },
                           )
                         ).data
                       const r3 =
@@ -774,7 +825,10 @@ export default function WeekendV2Page() {
                             season.id,
                             currentRound,
                             'q3',
-                            { fallbackSeasonId: canonicalCareerId, seasonYear: season.year || 2026 },
+                            {
+                              fallbackSeasonId: canonicalCareerId,
+                              seasonYear: season.year || 2026,
+                            },
                           )
                         ).data
                       if (r1 && r2 && r3) {
@@ -1862,13 +1916,19 @@ export default function WeekendV2Page() {
         } else {
           // QGRID-PB-01B: Se não achou de forma síncrona, reidratar via backend-first
           canonicalQualifyingPersistenceService
-            .readFinalGridPreferred(canonicalCareerId, currentRound)
+            .readFinalGridPreferred(canonicalCareerId, currentRound, {
+              fallbackSeasonId: season.id,
+              seasonYear: season.year || 2026,
+            })
             .then(async (outcome) => {
               if (outcome.data) {
                 setCompleteQualifyingResult(outcome.data)
               } else if (canonicalCareerId !== season.id) {
                 const fallbackOutcome = await canonicalQualifyingPersistenceService
-                  .readFinalGridPreferred(season.id, currentRound)
+                  .readFinalGridPreferred(season.id, currentRound, {
+                    fallbackSeasonId: canonicalCareerId,
+                    seasonYear: season.year || 2026,
+                  })
                   .catch(() => ({ data: null }))
                 if (fallbackOutcome.data) {
                   setCompleteQualifyingResult(fallbackOutcome.data)
@@ -3096,21 +3156,25 @@ export default function WeekendV2Page() {
     if (!isStageAlreadyStored) {
       if (stageId === 'q3') {
         // Conclusão de Q3: compõe e homologa o grid completo P1-P24
-        const q1Res = canonicalQualifyingPersistenceService.readStageResult(
-          season.id,
-          currentRound,
-          'q1',
-        )
-        const q2Res = canonicalQualifyingPersistenceService.readStageResult(
-          season.id,
-          currentRound,
-          'q2',
-        )
-        const q3Res = canonicalQualifyingPersistenceService.readStageResult(
-          season.id,
-          currentRound,
-          'q3',
-        )
+        const canonicalCareerId = resolveCanonicalCareerId(season, team)
+        const q1Res =
+          canonicalQualifyingPersistenceService.readStageResult(
+            canonicalCareerId,
+            currentRound,
+            'q1',
+          ) || canonicalQualifyingPersistenceService.readStageResult(season.id, currentRound, 'q1')
+        const q2Res =
+          canonicalQualifyingPersistenceService.readStageResult(
+            canonicalCareerId,
+            currentRound,
+            'q2',
+          ) || canonicalQualifyingPersistenceService.readStageResult(season.id, currentRound, 'q2')
+        const q3Res =
+          canonicalQualifyingPersistenceService.readStageResult(
+            canonicalCareerId,
+            currentRound,
+            'q3',
+          ) || canonicalQualifyingPersistenceService.readStageResult(season.id, currentRound, 'q3')
 
         let effectiveGrid: CompleteQualifyingWeekendResult | null = null
 
@@ -3133,6 +3197,10 @@ export default function WeekendV2Page() {
 
           effectiveGrid =
             fullGrid ||
+            canonicalQualifyingPersistenceService.readCompleteQualifyingResult(
+              canonicalCareerId,
+              currentRound,
+            ) ||
             canonicalQualifyingPersistenceService.readCompleteQualifyingResult(
               season.id,
               currentRound,
@@ -5701,7 +5769,7 @@ export default function WeekendV2Page() {
                   const freshRace =
                     canonicalRaceInitializationService.initializeRaceFromCanonicalGrid({
                       raceVariant: isSprintRaceSession ? 'SPRINT_RACE' : 'MAIN_RACE',
-                      careerId: canonicalCareerId,
+                      careerId: resolvedCareerIdForRestart,
                       season: season.year || 2026,
                       round: currentRound,
                       circuitName: gpInfo.circuit,
@@ -5820,10 +5888,18 @@ export default function WeekendV2Page() {
       ) : (
         // RENDERIZAÇÃO DOS PLACEHOLDERS (CORRIDA OU QUALIFICAÇÃO BLOQUEADA OU SEM DADOS)
         (() => {
+          const hasPersistedRace = Boolean(
+            canonicalRaceState &&
+            canonicalRaceState.status &&
+            canonicalRaceState.status !== 'completed',
+          )
           const visualState = resolveSessionVisualState({
             sessionId: selectedSessionDef.id,
             activeSessionId: selectedSessionId,
             completedSessions,
+            hasPersistedState: hasPersistedRace,
+            isSessionRunning: canonicalRaceState?.status === 'running' || isAutoAdvancing,
+            isSessionPaused: canonicalRaceState?.status === 'paused',
           })
           return (
             <SessionPlaceholderCard

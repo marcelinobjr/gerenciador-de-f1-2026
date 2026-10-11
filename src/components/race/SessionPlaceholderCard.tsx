@@ -1,7 +1,7 @@
 import React from 'react'
 import { Card } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
-import { Lock, Construction, Trophy, ShieldAlert, Sparkles } from 'lucide-react'
+import { Lock, Construction, Trophy, ShieldAlert, Sparkles, Flag } from 'lucide-react'
 import type { WeekendSessionDefinition } from '@/services/weekendScheduleConfig'
 
 export interface SessionPlaceholderCardProps {
@@ -131,7 +131,9 @@ export const SessionPlaceholderCard: React.FC<SessionPlaceholderCardProps> = ({
               variant="outline"
               className="border-emerald-300 text-emerald-700 bg-emerald-50 text-[11px] font-extrabold uppercase"
             >
-              Pendente
+              {session.id === 'race' || session.id === 'sprint_race'
+                ? 'Disponível — preparar corrida'
+                : 'Disponível'}
             </Badge>
           )}
         </div>
@@ -149,7 +151,9 @@ export const SessionPlaceholderCard: React.FC<SessionPlaceholderCardProps> = ({
                 ? 'Sessão concluída com resultado oficial registrado.'
                 : effectiveStatus === 'active' || effectiveStatus === 'paused'
                   ? 'Sessão em andamento. Acesse o controle de corrida para prosseguir.'
-                  : 'Sessão liberada para preparação e largada.'}
+                  : session.id === 'race' || session.id === 'sprint_race'
+                    ? 'Disponível — preparar corrida. Conclua o grid de qualificação ou acerte a estratégia para a largada.'
+                    : 'Sessão liberada para preparação e largada.'}
         </p>
       </div>
 
