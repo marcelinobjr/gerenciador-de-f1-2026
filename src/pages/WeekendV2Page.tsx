@@ -705,14 +705,20 @@ export default function WeekendV2Page() {
             // QGRID-PB-01B / GRID-R2-RECOVER-01A: Se o grid não estiver na memória, buscar de forma assíncrona preferindo PocketBase (race e sprint_race)
             if (!gridResult) {
               canonicalQualifyingPersistenceService
-                .readFinalGridPreferred(canonicalCareerId, currentRound)
+                .readFinalGridPreferred(canonicalCareerId, currentRound, {
+                  fallbackSeasonId: season.id,
+                  seasonYear: season.year || 2026,
+                })
                 .then(async (outcome) => {
                   if (isMounted && outcome.data) {
                     setCompleteQualifyingResult(outcome.data)
                   } else if (isMounted) {
                     if (canonicalCareerId !== season.id) {
                       const fallbackOutcome = await canonicalQualifyingPersistenceService
-                        .readFinalGridPreferred(season.id, currentRound)
+                        .readFinalGridPreferred(season.id, currentRound, {
+                          fallbackSeasonId: canonicalCareerId,
+                          seasonYear: season.year || 2026,
+                        })
                         .catch(() => ({ data: null }))
                       if (fallbackOutcome.data) {
                         setCompleteQualifyingResult(fallbackOutcome.data)
@@ -726,16 +732,19 @@ export default function WeekendV2Page() {
                           canonicalCareerId,
                           currentRound,
                           'q1',
+                          { fallbackSeasonId: season.id, seasonYear: season.year || 2026 },
                         ),
                         canonicalQualifyingPersistenceService.readStageResultPreferred(
                           canonicalCareerId,
                           currentRound,
                           'q2',
+                          { fallbackSeasonId: season.id, seasonYear: season.year || 2026 },
                         ),
                         canonicalQualifyingPersistenceService.readStageResultPreferred(
                           canonicalCareerId,
                           currentRound,
                           'q3',
+                          { fallbackSeasonId: season.id, seasonYear: season.year || 2026 },
                         ),
                       ])
                       const r1 =
@@ -745,6 +754,7 @@ export default function WeekendV2Page() {
                             season.id,
                             currentRound,
                             'q1',
+                            { fallbackSeasonId: canonicalCareerId, seasonYear: season.year || 2026 },
                           )
                         ).data
                       const r2 =
@@ -754,6 +764,7 @@ export default function WeekendV2Page() {
                             season.id,
                             currentRound,
                             'q2',
+                            { fallbackSeasonId: canonicalCareerId, seasonYear: season.year || 2026 },
                           )
                         ).data
                       const r3 =
@@ -763,6 +774,7 @@ export default function WeekendV2Page() {
                             season.id,
                             currentRound,
                             'q3',
+                            { fallbackSeasonId: canonicalCareerId, seasonYear: season.year || 2026 },
                           )
                         ).data
                       if (r1 && r2 && r3) {
@@ -1511,14 +1523,20 @@ export default function WeekendV2Page() {
         // QGRID-PB-01B / GRID-R2-RECOVER-01A: Se o grid não estiver na memória, buscar backend-first (race e sprint_race)
         if (!fullGrid) {
           canonicalQualifyingPersistenceService
-            .readFinalGridPreferred(canonicalCareerId, currentRound)
+            .readFinalGridPreferred(canonicalCareerId, currentRound, {
+              fallbackSeasonId: season.id,
+              seasonYear: season.year || 2026,
+            })
             .then(async (outcome) => {
               if (outcome.data) {
                 setCompleteQualifyingResult(outcome.data)
               } else {
                 if (canonicalCareerId !== season.id) {
                   const fallbackOutcome = await canonicalQualifyingPersistenceService
-                    .readFinalGridPreferred(season.id, currentRound)
+                    .readFinalGridPreferred(season.id, currentRound, {
+                      fallbackSeasonId: canonicalCareerId,
+                      seasonYear: season.year || 2026,
+                    })
                     .catch(() => ({ data: null }))
                   if (fallbackOutcome.data) {
                     setCompleteQualifyingResult(fallbackOutcome.data)
@@ -1532,16 +1550,19 @@ export default function WeekendV2Page() {
                       canonicalCareerId,
                       currentRound,
                       'q1',
+                      { fallbackSeasonId: season.id, seasonYear: season.year || 2026 },
                     ),
                     canonicalQualifyingPersistenceService.readStageResultPreferred(
                       canonicalCareerId,
                       currentRound,
                       'q2',
+                      { fallbackSeasonId: season.id, seasonYear: season.year || 2026 },
                     ),
                     canonicalQualifyingPersistenceService.readStageResultPreferred(
                       canonicalCareerId,
                       currentRound,
                       'q3',
+                      { fallbackSeasonId: season.id, seasonYear: season.year || 2026 },
                     ),
                   ])
                   const r1 =
@@ -1551,6 +1572,7 @@ export default function WeekendV2Page() {
                         season.id,
                         currentRound,
                         'q1',
+                        { fallbackSeasonId: canonicalCareerId, seasonYear: season.year || 2026 },
                       )
                     ).data
                   const r2 =
@@ -1560,6 +1582,7 @@ export default function WeekendV2Page() {
                         season.id,
                         currentRound,
                         'q2',
+                        { fallbackSeasonId: canonicalCareerId, seasonYear: season.year || 2026 },
                       )
                     ).data
                   const r3 =
@@ -1569,6 +1592,7 @@ export default function WeekendV2Page() {
                         season.id,
                         currentRound,
                         'q3',
+                        { fallbackSeasonId: canonicalCareerId, seasonYear: season.year || 2026 },
                       )
                     ).data
                   if (r1 && r2 && r3) {
