@@ -150,15 +150,21 @@ export class CanonicalQualifyingFinalGridBackendService {
       let isSprint = true
       let stage3Record: any = null
 
+      // Resiliente a career_id canônico ou seasonId legada
+      const careerFilter =
+        context.seasonId && context.seasonId !== context.careerId
+          ? `(career_id = "${context.careerId}" || career_id = "${context.seasonId}")`
+          : `career_id = "${context.careerId}"`
+
       try {
         stage3Record = await stageCol.getFirstListItem(
-          `career_id = "${context.careerId}" && round = ${context.round} && stage = "sq3"`,
+          `${careerFilter} && round = ${context.round} && stage = "sq3"`,
         )
       } catch {
         // Se SQ3 não existe, tentar Q3 padrão
         try {
           stage3Record = await stageCol.getFirstListItem(
-            `career_id = "${context.careerId}" && round = ${context.round} && stage = "q3"`,
+            `${careerFilter} && round = ${context.round} && stage = "q3"`,
           )
           isSprint = false
         } catch {
@@ -172,13 +178,13 @@ export class CanonicalQualifyingFinalGridBackendService {
 
       const stage1Record = await stageCol
         .getFirstListItem(
-          `career_id = "${context.careerId}" && round = ${context.round} && stage = "${stagesToFetch[0]}"`,
+          `${careerFilter} && round = ${context.round} && stage = "${stagesToFetch[0]}"`,
         )
         .catch(() => null)
 
       const stage2Record = await stageCol
         .getFirstListItem(
-          `career_id = "${context.careerId}" && round = ${context.round} && stage = "${stagesToFetch[1]}"`,
+          `${careerFilter} && round = ${context.round} && stage = "${stagesToFetch[1]}"`,
         )
         .catch(() => null)
 

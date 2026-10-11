@@ -594,18 +594,33 @@ export default function WeekendV2Page() {
 
           // Se houver grid final oficial mas 'q3' não estiver em stored (ex: salvo antes da lista de sessões ou em outro dispositivo),
           // assegurar que a qualificação figure como concluída para permitir a transição imediata para a Corrida.
-          let hasQualiGrid = canonicalQualifyingPersistenceService.readCompleteQualifyingResult(
-            season.id,
-            currentRound,
-          )
+          const canonicalCareerIdForQuali = resolveCanonicalCareerId(season, team)
+          let hasQualiGrid =
+            canonicalQualifyingPersistenceService.readCompleteQualifyingResult(
+              canonicalCareerIdForQuali,
+              currentRound,
+            ) ||
+            canonicalQualifyingPersistenceService.readCompleteQualifyingResult(
+              season.id,
+              currentRound,
+            )
           if (!hasQualiGrid) {
             try {
               const outcome = await canonicalQualifyingPersistenceService.readFinalGridPreferred(
-                season.id,
+                canonicalCareerIdForQuali,
                 currentRound,
               )
               if (outcome.data) {
                 hasQualiGrid = outcome.data
+              } else if (canonicalCareerIdForQuali !== season.id) {
+                const fallbackOutcome =
+                  await canonicalQualifyingPersistenceService.readFinalGridPreferred(
+                    season.id,
+                    currentRound,
+                  )
+                if (fallbackOutcome.data) {
+                  hasQualiGrid = fallbackOutcome.data
+                }
               }
             } catch {
               // ignore
@@ -681,16 +696,95 @@ export default function WeekendV2Page() {
             initializeQualifyingSession(initialSessionId as QualifyingStageId, reg, invs)
           } else if (initialSessionId === 'race' || initialSessionId === 'sprint_race') {
             const isSprintTarget = initialSessionId === 'sprint_race'
-            const gridResult = resolveRaceOrSprintGrid(season.id, currentRound, isSprintTarget)
+            const canonicalCareerId = resolveCanonicalCareerId(season, team)
+            const gridResult =
+              resolveRaceOrSprintGrid(canonicalCareerId, currentRound, isSprintTarget) ||
+              resolveRaceOrSprintGrid(season.id, currentRound, isSprintTarget)
             setCompleteQualifyingResult(gridResult)
 
             // QGRID-PB-01B / GRID-R2-RECOVER-01A: Se o grid não estiver na memória, buscar de forma assíncrona preferindo PocketBase (race e sprint_race)
             if (!gridResult) {
               canonicalQualifyingPersistenceService
-                .readFinalGridPreferred(season.id, currentRound)
-                .then((outcome) => {
+                .readFinalGridPreferred(canonicalCareerId, currentRound)
+                .then(async (outcome) => {
                   if (isMounted && outcome.data) {
                     setCompleteQualifyingResult(outcome.data)
+                  } else if (isMounted) {
+                    if (canonicalCareerId !== season.id) {
+                      const fallbackOutcome = await canonicalQualifyingPersistenceService
+                        .readFinalGridPreferred(season.id, currentRound)
+                        .catch(() => ({ data: null }))
+                      if (fallbackOutcome.data) {
+                        setCompleteQualifyingResult(fallbackOutcome.data)
+                        return
+                      }
+                    }
+                    // Fallback B: recompor via readStageResultPreferred Q1/Q2/Q3 se grid final não existir diretamente
+                    try {
+                      const [q1Res, q2Res, q3Res] = await Promise.all([
+                        canonicalQualifyingPersistenceService.readStageResultPreferred(
+                          canonicalCareerId,
+                          currentRound,
+                          'q1',
+                        ),
+                        canonicalQualifyingPersistenceService.readStageResultPreferred(
+                          canonicalCareerId,
+                          currentRound,
+                          'q2',
+                        ),
+                        canonicalQualifyingPersistenceService.readStageResultPreferred(
+                          canonicalCareerId,
+                          currentRound,
+                          'q3',
+                        ),
+                      ])
+                      const r1 =
+                        q1Res.data ||
+                        (
+                          await canonicalQualifyingPersistenceService.readStageResultPreferred(
+                            season.id,
+                            currentRound,
+                            'q1',
+                          )
+                        ).data
+                      const r2 =
+                        q2Res.data ||
+                        (
+                          await canonicalQualifyingPersistenceService.readStageResultPreferred(
+                            season.id,
+                            currentRound,
+                            'q2',
+                          )
+                        ).data
+                      const r3 =
+                        q3Res.data ||
+                        (
+                          await canonicalQualifyingPersistenceService.readStageResultPreferred(
+                            season.id,
+                            currentRound,
+                            'q3',
+                          )
+                        ).data
+                      if (r1 && r2 && r3) {
+                        const combined =
+                          canonicalQualifyingPersistenceService.buildCombinedFinalGrid({
+                            seasonId: canonicalCareerId,
+                            round: currentRound,
+                            q1Result: r1,
+                            q2Result: r2,
+                            q3Result: r3,
+                            persistResult: true,
+                          })
+                        if (isMounted && combined) {
+                          setCompleteQualifyingResult(combined)
+                        }
+                      }
+                    } catch (reconErr) {
+                      console.warn(
+                        '[WeekendV2Page] Falha ao recompor grid combinado no load inicial:',
+                        reconErr,
+                      )
+                    }
                   }
                 })
                 .catch((err) => {
@@ -700,8 +794,6 @@ export default function WeekendV2Page() {
                   )
                 })
             }
-
-            const canonicalCareerId = resolveCanonicalCareerId(season, team)
             canonicalRaceInitializationService
               .readCanonicalRaceStatePreferred(
                 canonicalCareerId,
@@ -1411,16 +1503,93 @@ export default function WeekendV2Page() {
           }
         }
 
-        const fullGrid = resolveRaceOrSprintGrid(season.id, currentRound, isSprintTarget)
+        const fullGrid =
+          resolveRaceOrSprintGrid(canonicalCareerId, currentRound, isSprintTarget) ||
+          resolveRaceOrSprintGrid(season.id, currentRound, isSprintTarget)
         setCompleteQualifyingResult(fullGrid)
 
         // QGRID-PB-01B / GRID-R2-RECOVER-01A: Se o grid não estiver na memória, buscar backend-first (race e sprint_race)
         if (!fullGrid) {
           canonicalQualifyingPersistenceService
-            .readFinalGridPreferred(season.id, currentRound)
-            .then((outcome) => {
+            .readFinalGridPreferred(canonicalCareerId, currentRound)
+            .then(async (outcome) => {
               if (outcome.data) {
                 setCompleteQualifyingResult(outcome.data)
+              } else {
+                if (canonicalCareerId !== season.id) {
+                  const fallbackOutcome = await canonicalQualifyingPersistenceService
+                    .readFinalGridPreferred(season.id, currentRound)
+                    .catch(() => ({ data: null }))
+                  if (fallbackOutcome.data) {
+                    setCompleteQualifyingResult(fallbackOutcome.data)
+                    return
+                  }
+                }
+                // Fallback B: recompor via readStageResultPreferred Q1/Q2/Q3 se grid final não existir diretamente
+                try {
+                  const [q1Res, q2Res, q3Res] = await Promise.all([
+                    canonicalQualifyingPersistenceService.readStageResultPreferred(
+                      canonicalCareerId,
+                      currentRound,
+                      'q1',
+                    ),
+                    canonicalQualifyingPersistenceService.readStageResultPreferred(
+                      canonicalCareerId,
+                      currentRound,
+                      'q2',
+                    ),
+                    canonicalQualifyingPersistenceService.readStageResultPreferred(
+                      canonicalCareerId,
+                      currentRound,
+                      'q3',
+                    ),
+                  ])
+                  const r1 =
+                    q1Res.data ||
+                    (
+                      await canonicalQualifyingPersistenceService.readStageResultPreferred(
+                        season.id,
+                        currentRound,
+                        'q1',
+                      )
+                    ).data
+                  const r2 =
+                    q2Res.data ||
+                    (
+                      await canonicalQualifyingPersistenceService.readStageResultPreferred(
+                        season.id,
+                        currentRound,
+                        'q2',
+                      )
+                    ).data
+                  const r3 =
+                    q3Res.data ||
+                    (
+                      await canonicalQualifyingPersistenceService.readStageResultPreferred(
+                        season.id,
+                        currentRound,
+                        'q3',
+                      )
+                    ).data
+                  if (r1 && r2 && r3) {
+                    const combined = canonicalQualifyingPersistenceService.buildCombinedFinalGrid({
+                      seasonId: canonicalCareerId,
+                      round: currentRound,
+                      q1Result: r1,
+                      q2Result: r2,
+                      q3Result: r3,
+                      persistResult: true,
+                    })
+                    if (combined) {
+                      setCompleteQualifyingResult(combined)
+                    }
+                  }
+                } catch (reconErr) {
+                  console.warn(
+                    '[WeekendV2Page] Falha ao recompor grid combinado em handleSelectSession:',
+                    reconErr,
+                  )
+                }
               }
             })
             .catch((err) => {
@@ -1654,19 +1823,32 @@ export default function WeekendV2Page() {
 
       // Se Q3 já estiver concluído, verificar se já temos o grid final
       if (stageId === 'q3' && qState.status === 'completed') {
-        const fullGrid = canonicalQualifyingPersistenceService.readCompleteQualifyingResult(
-          season.id,
-          currentRound,
-        )
+        const canonicalCareerId = resolveCanonicalCareerId(season, team)
+        const fullGrid =
+          canonicalQualifyingPersistenceService.readCompleteQualifyingResult(
+            canonicalCareerId,
+            currentRound,
+          ) ||
+          canonicalQualifyingPersistenceService.readCompleteQualifyingResult(
+            season.id,
+            currentRound,
+          )
         if (fullGrid) {
           setCompleteQualifyingResult(fullGrid)
         } else {
           // QGRID-PB-01B: Se não achou de forma síncrona, reidratar via backend-first
           canonicalQualifyingPersistenceService
-            .readFinalGridPreferred(season.id, currentRound)
-            .then((outcome) => {
+            .readFinalGridPreferred(canonicalCareerId, currentRound)
+            .then(async (outcome) => {
               if (outcome.data) {
                 setCompleteQualifyingResult(outcome.data)
+              } else if (canonicalCareerId !== season.id) {
+                const fallbackOutcome = await canonicalQualifyingPersistenceService
+                  .readFinalGridPreferred(season.id, currentRound)
+                  .catch(() => ({ data: null }))
+                if (fallbackOutcome.data) {
+                  setCompleteQualifyingResult(fallbackOutcome.data)
+                }
               }
             })
             .catch((err) => {
