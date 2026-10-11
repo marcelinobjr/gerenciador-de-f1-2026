@@ -207,42 +207,50 @@ export default function RacePage() {
 
           if (official) {
             processOfficialFound(official)
-            // Se o journal local não estiver COMPLETE, consultar o backend para retomar/reconciliar
-            const localJournal = canonicalCareerPersistenceService.getApplicationJournal(
-              ctx.careerId,
-              ctx.seasonYear,
-              ctx.round,
-              ctx.variant,
-            )
-            if (!localJournal || localJournal.status !== 'COMPLETE') {
-              // Disparar sincronização em segundo plano para retomar aplicação
-              canonicalCareerPersistenceService
-                .registerOfficialRaceResultInCareerAsync(official, { requireBackendSync: true })
-                .then((res) => {
-                  if (isMounted) {
-                    setCareerPersistenceStatus(res.journal.status)
-                    setIsReconciliationPending(res.journal.status !== 'COMPLETE')
-                    if (res.success) {
-                      setRemoteQueryState('found')
-                      canonicalChampionshipService.processAndPersistRoundChampionship(
-                        ctx.careerId,
-                        ctx.seasonYear,
-                        ctx.round,
-                        official.playerTeamId,
-                      )
-                    }
-                  }
-                })
-                .catch((resumeErr) => {
-                  console.warn(
-                    '[RacePage] Erro ao retomar aplicação do journal da corrida:',
-                    resumeErr,
-                  )
-                })
-            }
+            // Consultar o backend para verificar se o journal precisa ser retomado
+            canonicalCareerPersistenceService
+              .getApplicationJournalFromBackend(
+                ctx.careerId,
+                ctx.seasonYear,
+                ctx.round,
+                ctx.variant,
+              )
+              .then((remoteJ) => {
+                if (!isMounted) return
+                if (!remoteJ || remoteJ.status !== 'COMPLETE') {
+                  setIsPersistingCareer(true)
+                  canonicalCareerPersistenceService
+                    .registerOfficialRaceResultInCareerAsync(official, { requireBackendSync: true })
+                    .then((res) => {
+                      if (isMounted) {
+                        setCareerPersistenceStatus(res.journal.status)
+                        setIsReconciliationPending(res.journal.status !== 'COMPLETE')
+                        setIsPersistingCareer(false)
+                        if (res.success) {
+                          setRemoteQueryState('found')
+                          canonicalChampionshipService.processAndPersistRoundChampionship(
+                            ctx.careerId,
+                            ctx.seasonYear,
+                            ctx.round,
+                            official.playerTeamId,
+                          )
+                        }
+                      }
+                    })
+                    .catch((resumeErr) => {
+                      if (isMounted) {
+                        setIsPersistingCareer(false)
+                        console.warn(
+                          '[RacePage] Erro ao retomar aplicação do journal da corrida:',
+                          resumeErr,
+                        )
+                      }
+                    })
+                }
+              })
+              .catch(() => {})
             return
           }
-
           // (2) Prioridade 2: Corrida em andamento ou concluída (backend-first via readCanonicalRaceStatePreferred)
           let inProgressRace: CanonicalRaceState | null = null
           try {
@@ -345,11 +353,58 @@ export default function RacePage() {
   // Recuperação do resultado oficial persistido no backend caso localStorage não o tenha (ex: cota excedida)
   useEffect(() => {
     if (!sessionResolution || sessionResolution.status !== 'ready') return
-    // Se já temos resultado carregado, não sobrescrever
-    if (officialRaceResult) return
 
     const ctx = sessionResolution.context
     let isMounted = true
+
+    // Se já temos resultado carregado, verificar se o journal precisa de retomada automática
+    if (officialRaceResult) {
+      canonicalCareerPersistenceService
+        .getApplicationJournalFromBackend(ctx.careerId, ctx.seasonYear, ctx.round, ctx.variant)
+        .then((j) => {
+          if (
+            isMounted &&
+            j &&
+            (j.status === 'APPLYING' ||
+              j.status === 'FAILED' ||
+              (j.totalEntries > 0 && j.appliedDriverIds.length < j.totalEntries))
+          ) {
+            console.info(
+              '[RacePage] Retomando journal de aplicação pendente/stall da rodada:',
+              j.key,
+            )
+            setIsPersistingCareer(true)
+            canonicalCareerPersistenceService
+              .registerOfficialRaceResultInCareerAsync(officialRaceResult, {
+                requireBackendSync: true,
+              })
+              .then((res) => {
+                if (isMounted) {
+                  setCareerPersistenceStatus(res.journal.status)
+                  setIsReconciliationPending(res.journal.status !== 'COMPLETE')
+                  setIsPersistingCareer(false)
+                  if (res.success) {
+                    setRemoteQueryState('found')
+                    canonicalChampionshipService.processAndPersistRoundChampionship(
+                      ctx.careerId,
+                      ctx.seasonYear,
+                      ctx.round,
+                      officialRaceResult.playerTeamId,
+                    )
+                  }
+                }
+              })
+              .catch((err) => {
+                if (isMounted) {
+                  setIsPersistingCareer(false)
+                  console.warn('[RacePage] Erro ao retomar journal da rodada:', err)
+                }
+              })
+          }
+        })
+        .catch(() => {})
+      return
+    }
 
     canonicalRaceResultService
       .getOfficialRaceResultFromBackend(ctx.careerId, ctx.seasonYear, ctx.round, ctx.variant)
@@ -369,6 +424,7 @@ export default function RacePage() {
           .getApplicationJournalFromBackend(ctx.careerId, ctx.seasonYear, ctx.round, ctx.variant)
           .then((j) => {
             if (isMounted && (!j || j.status !== 'COMPLETE')) {
+              setIsPersistingCareer(true)
               canonicalCareerPersistenceService
                 .registerOfficialRaceResultInCareerAsync(remoteOfficial, {
                   requireBackendSync: true,
@@ -377,6 +433,7 @@ export default function RacePage() {
                   if (isMounted) {
                     setCareerPersistenceStatus(res.journal.status)
                     setIsReconciliationPending(res.journal.status !== 'COMPLETE')
+                    setIsPersistingCareer(false)
                     if (res.success) {
                       setRemoteQueryState('found')
                       canonicalChampionshipService.processAndPersistRoundChampionship(
@@ -389,7 +446,10 @@ export default function RacePage() {
                   }
                 })
                 .catch((err) => {
-                  console.warn('[RacePage] Erro ao retomar journal a partir do backend:', err)
+                  if (isMounted) {
+                    setIsPersistingCareer(false)
+                    console.warn('[RacePage] Erro ao retomar journal a partir do backend:', err)
+                  }
                 })
             }
           })

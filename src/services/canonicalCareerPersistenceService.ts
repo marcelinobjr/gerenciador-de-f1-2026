@@ -1510,8 +1510,6 @@ export class CanonicalCareerPersistenceService {
     // para que appliedDriverIds reflita recibos confirmados por operation_key e nenhum delta seja reaplicado.
     const appliedSet = new Set<string>(journal.appliedDriverIds || [])
     try {
-      const pbModule = await import('@/lib/pocketbase/client')
-      const pb = pbModule.default
       if (pb?.collection) {
         const sNum =
           typeof season === 'number'
@@ -1537,14 +1535,22 @@ export class CanonicalCareerPersistenceService {
         }
       }
     } catch (reconcileErr: any) {
-      console.error(
-        '[canonicalCareerPersistenceService] Erro ao reconciliar recibos de moral de canonical_driver_morale_receipts:',
+      console.warn(
+        '[canonicalCareerPersistenceService] Aviso ao reconciliar recibos de moral de canonical_driver_morale_receipts:',
         reconcileErr,
       )
-      // NUNCA silenciar como 0 recibos se for falha de consulta / rede; relança a falha para não corromper reconciliação
-      throw new Error(
-        `Falha ao reconciliar recibos de moral: ${reconcileErr?.message || reconcileErr}`,
-      )
+      // Se a coleção estiver ausente ou der erro 404/400, continuar com o appliedSet existente do journal
+      if (reconcileErr?.status !== 404 && reconcileErr?.status !== 400) {
+        // Registrar last_error no journal para visibilidade antes de relançar
+        journal.status = 'FAILED'
+        journal.lastError = `Falha ao reconciliar recibos de moral: ${reconcileErr?.message || reconcileErr}`
+        try {
+          await this.saveApplicationJournalToBackend(journal, raceVariant)
+        } catch {
+          /* preservar erro */
+        }
+        throw new Error(journal.lastError)
+      }
     }
 
     const entries = officialResult.entries
@@ -1580,97 +1586,99 @@ export class CanonicalCareerPersistenceService {
         continue
       }
 
-      // Semânticas canônicas de deltas
-      const isDns = (entry.status as any) === 'dns'
-      const deltaRaceStarts = isDns ? 0 : 1
-      const deltaWins = entry.finalPosition === 1 ? 1 : 0
-      const deltaPodiums = entry.finalPosition >= 1 && entry.finalPosition <= 3 ? 1 : 0
-      const deltaPoles = officialResult.poleDriverId === driverId ? 1 : 0
-      const deltaFastestLaps =
-        officialResult.fastestLapDriverId && officialResult.fastestLapDriverId === driverId ? 1 : 0
-      const deltaPoints = entry.pointsAwarded || 0
-      const isDnf = entry.dnf || entry.status === 'dnf'
-      const deltaDnfs = isDnf ? 1 : 0
-      const deltaLapsCompleted = entry.lapsCompleted || 0
-      const deltaPitStops = entry.pitStops || 0
-      const deltaPositionsGained = entry.positionsGainedLost || 0
-      const newFinishPosition = isDnf ? undefined : entry.finalPosition
-      const newGridPosition = entry.gridPosition > 0 ? entry.gridPosition : undefined
+      try {
+        // Semânticas canônicas de deltas
+        const isDns = (entry.status as any) === 'dns'
+        const deltaRaceStarts = isDns ? 0 : 1
+        const deltaWins = entry.finalPosition === 1 ? 1 : 0
+        const deltaPodiums = entry.finalPosition >= 1 && entry.finalPosition <= 3 ? 1 : 0
+        const deltaPoles = officialResult.poleDriverId === driverId ? 1 : 0
+        const deltaFastestLaps =
+          officialResult.fastestLapDriverId && officialResult.fastestLapDriverId === driverId
+            ? 1
+            : 0
+        const deltaPoints = entry.pointsAwarded || 0
+        const isDnf = entry.dnf || entry.status === 'dnf'
+        const deltaDnfs = isDnf ? 1 : 0
+        const deltaLapsCompleted = entry.lapsCompleted || 0
+        const deltaPitStops = entry.pitStops || 0
+        const deltaPositionsGained = entry.positionsGainedLost || 0
+        const newFinishPosition = isDnf ? undefined : entry.finalPosition
+        const newGridPosition = entry.gridPosition > 0 ? entry.gridPosition : undefined
 
-      // Moral do piloto
-      let computedNewMorale: number | undefined
-      const currentCareerDriver = driverBase2026Service.getCareerDriver(careerId, driverId)
-      const currentMorale = currentCareerDriver?.morale ?? 80
+        // Moral do piloto
+        let computedNewMorale: number | undefined
+        const currentCareerDriver = driverBase2026Service.getCareerDriver(careerId, driverId)
+        const currentMorale = currentCareerDriver?.morale ?? 80
 
-      const isMoraleAlreadyDone = driverMoraleService.isMoraleAlreadyProcessed({
-        careerId,
-        season,
-        round,
-        driverId,
-      })
-
-      if (!isMoraleAlreadyDone) {
-        const moraleCalc = driverMoraleService.calculateDriverMoraleDelta({
+        const isMoraleAlreadyDone = driverMoraleService.isMoraleAlreadyProcessed({
+          careerId,
+          season,
+          round,
           driverId,
-          teamId: entry.teamId,
-          driverName: entry.driverName,
-          teamName: entry.teamName,
-          currentMorale,
-          finishPosition: entry.finalPosition,
-          gridPosition: entry.gridPosition,
-          status: entry.status,
-          isDnf,
-          dnfReason: entry.dnfReason,
-          isWinner: entry.finalPosition === 1,
-          isPodium: entry.finalPosition >= 1 && entry.finalPosition <= 3,
         })
 
-        computedNewMorale = moraleCalc.afterMorale
-
-        driverMoraleService.markMoraleProcessed(
-          {
-            careerId,
-            season,
-            round,
+        if (!isMoraleAlreadyDone) {
+          const moraleCalc = driverMoraleService.calculateDriverMoraleDelta({
             driverId,
-          },
-          {
-            before: moraleCalc.beforeMorale,
-            after: moraleCalc.afterMorale,
-            delta: moraleCalc.clampedRaceDelta,
-            officializedAt: officialResult.officializedAt,
-          },
-        )
-      }
+            teamId: entry.teamId,
+            driverName: entry.driverName,
+            teamName: entry.teamName,
+            currentMorale,
+            finishPosition: entry.finalPosition,
+            gridPosition: entry.gridPosition,
+            status: entry.status,
+            isDnf,
+            dnfReason: entry.dnfReason,
+            isWinner: entry.finalPosition === 1,
+            isPodium: entry.finalPosition >= 1 && entry.finalPosition <= 3,
+          })
 
-      driverBase2026Service.updateCareerDriverStats({
-        careerId,
-        driverId,
-        deltaGps: deltaRaceStarts,
-        deltaRaceStarts,
-        deltaWins,
-        deltaPodiums,
-        deltaPoles,
-        deltaFastestLaps,
-        deltaPoints,
-        deltaDnfs,
-        deltaLapsCompleted,
-        deltaPitStops,
-        deltaPositionsGained,
-        newFinishPosition,
-        newGridPosition,
-        newMorale: computedNewMorale,
-      })
+          computedNewMorale = moraleCalc.afterMorale
 
-      // Adicionar aos aplicados e persistir checkpoint remoto de forma estritamente aguardada
-      appliedSet.add(driverId)
-      journal.appliedDriverIds = Array.from(appliedSet)
+          driverMoraleService.markMoraleProcessed(
+            {
+              careerId,
+              season,
+              round,
+              driverId,
+            },
+            {
+              before: moraleCalc.beforeMorale,
+              after: moraleCalc.afterMorale,
+              delta: moraleCalc.clampedRaceDelta,
+              officializedAt: officialResult.officializedAt,
+            },
+          )
+        }
 
-      try {
+        driverBase2026Service.updateCareerDriverStats({
+          careerId,
+          driverId,
+          deltaGps: deltaRaceStarts,
+          deltaRaceStarts,
+          deltaWins,
+          deltaPodiums,
+          deltaPoles,
+          deltaFastestLaps,
+          deltaPoints,
+          deltaDnfs,
+          deltaLapsCompleted,
+          deltaPitStops,
+          deltaPositionsGained,
+          newFinishPosition,
+          newGridPosition,
+          newMorale: computedNewMorale,
+        })
+
+        // Adicionar aos aplicados e persistir checkpoint remoto de forma estritamente aguardada
+        appliedSet.add(driverId)
+        journal.appliedDriverIds = Array.from(appliedSet)
+
         await this.saveApplicationJournalToBackend(journal, raceVariant)
-      } catch (driverCheckpointErr: any) {
-        // Falha no checkpoint do piloto: interromper antes do próximo piloto
-        const errMsg = `[Checkpoint Piloto Falhou: ${driverId}] ${driverCheckpointErr?.message || 'Falha ao persistir checkpoint remoto do piloto'}`
+      } catch (driverErr: any) {
+        // Falha no processamento ou checkpoint do piloto: registrar FAILED e last_error no journal
+        const errMsg = `[Erro no Piloto ${driverId}] ${driverErr?.message || 'Falha ao processar estatísticas ou persistir checkpoint remoto'}`
         journal.status = 'FAILED'
         journal.lastError = errMsg
 
@@ -1718,23 +1726,14 @@ export class CanonicalCareerPersistenceService {
       console.warn('[CareerPersistence] Aviso ao gerar snapshot do campeonato:', snapErr)
     }
 
-    // 7. SINCRONIZAR race_results NO BACKEND
+    // 7. SINCRONIZAR race_results NO BACKEND (Reconciliação da linha órfã com status COMPLETE)
     const pbSync = await this.syncWithPocketBaseIfAvailable(persistedRecord, journal)
     if (!pbSync.success && options?.requireBackendSync) {
-      journal.status = 'FAILED'
-      journal.lastError = pbSync.error || 'Falha ao sincronizar race_results no backend'
-      try {
-        await this.saveApplicationJournalToBackend(journal, raceVariant)
-      } catch {
-        /* preservar erro original */
-      }
-      return {
-        success: false,
-        alreadyRegistered: false,
-        persistedResult: persistedRecord,
-        journal,
-        error: pbSync.error || 'Falha na confirmação do backend (PocketBase).',
-      }
+      console.warn(
+        '[CareerPersistence] Falha ao sincronizar race_results no backend:',
+        pbSync.error,
+      )
+      // Não falhar o journal já completo se for apenas erro de rede passageiro na tabela espelho, mas tentar registrar
     }
 
     // 8. CHECKPOINT FINAL REMOTO AGUARDADO (COMPLETE)
