@@ -303,8 +303,10 @@ export function parseStorageKeyMetadata(key: string): {
     }
   }
 
-  // Championship snapshot: apex_championship_snapshot_${careerId}_${season}_r${round}
-  const champSnapMatch = key.match(/^apex_championship_snapshot_(.+?)_(.+?)_r(\d+)$/)
+  // Championship snapshot: championship_${careerId}_${season}_r${round} ou apex_championship_snapshot_${careerId}_${season}_r${round}
+  const champSnapMatch =
+    key.match(/^championship_(.+?)_(.+?)_r(\d+)$/) ||
+    key.match(/^apex_championship_snapshot_(.+?)_(.+?)_r(\d+)$/)
   if (champSnapMatch) {
     return {
       family: APEX_STORAGE_FAMILIES.CHAMPIONSHIP_SNAPSHOT,
@@ -618,21 +620,91 @@ export function pruneStorageData(context: PruneContext): PruneResult {
  * 2. Tenta a mesma gravação novamente uma única vez;
  * 3. Se ainda falhar, lança/propaga o erro explícito.
  */
+export const STORAGE_WARNING_THRESHOLD_BYTES = 3 * 1024 * 1024 // ~3MB
+
+/**
+ * 7. LIMPEZA PREVENTIVA DE RECUPERAÇÃO (STORAGE RECOVERY CLEANUP)
+ * Se o uso do localStorage passar de ~3MB (STORAGE_WARNING_THRESHOLD_BYTES) ou ao avançar rodada,
+ * remove sessões obsoletas e snapshots de campeonato antigos de rodadas já concluídas (< currentRound - 1).
+ */
+export function runPreventiveStorageCleanup(context?: PruneContext): PruneResult {
+  if (typeof window === 'undefined' || !window.localStorage) {
+    return { prunedKeys: [], freedBytes: 0, freedKB: 0, preservedKeysCount: 0 }
+  }
+
+  // Mede o consumo total atual
+  let currentBytes = 0
+  const allKeys: string[] = []
+  for (let i = 0; i < window.localStorage.length; i++) {
+    const k = window.localStorage.key(i)
+    if (k) {
+      allKeys.push(k)
+      const v = window.localStorage.getItem(k) || ''
+      currentBytes += (k.length + v.length) * 2
+    }
+  }
+
+  // Executa prune padrão
+  const effectiveRound = context?.currentRound
+  const pruneRes = pruneStorageData({
+    careerId: context?.careerId,
+    seasonId: context?.seasonId,
+    currentRound: effectiveRound,
+  })
+
+  // Se o uso ultrapassa o threshold de segurança ou se houver round informado,
+  // limpa snapshots de campeonato antigos (mantendo apenas round atual e anterior)
+  if (currentBytes > STORAGE_WARNING_THRESHOLD_BYTES || (effectiveRound && effectiveRound > 2)) {
+    const champKeysToRemove: string[] = []
+    let extraFreedBytes = 0
+
+    for (const key of allKeys) {
+      const meta = parseStorageKeyMetadata(key)
+      if (meta.family === APEX_STORAGE_FAMILIES.CHAMPIONSHIP_SNAPSHOT && typeof meta.round === 'number') {
+        if (effectiveRound && meta.round < effectiveRound - 1) {
+          champKeysToRemove.push(key)
+        }
+      }
+    }
+
+    for (const ck of champKeysToRemove) {
+      try {
+        const val = window.localStorage.getItem(ck) || ''
+        const size = (ck.length + val.length) * 2
+        window.localStorage.removeItem(ck)
+        extraFreedBytes += size
+        pruneRes.prunedKeys.push(ck)
+      } catch {
+        /* ignore */
+      }
+    }
+    pruneRes.freedBytes += extraFreedBytes
+    pruneRes.freedKB = Math.round((pruneRes.freedBytes / 1024) * 100) / 100
+  }
+
+  return pruneRes
+}
+
+export function isQuotaExceededError(err: any): boolean {
+  return Boolean(
+    err?.name === 'QuotaExceededError' ||
+    err?.name === 'NS_ERROR_DOM_QUOTA_REACHED' ||
+    err?.code === 22 ||
+    err?.code === 1014 ||
+    (typeof err?.message === 'string' &&
+      (err.message.includes('quota') ||
+        err.message.includes('Quota') ||
+        err.message.includes('exceeded the quota')))
+  )
+}
+
 export function safeLocalStorageSetItem(key: string, value: string, context?: PruneContext): void {
   if (typeof window === 'undefined' || !window.localStorage) return
 
   try {
     window.localStorage.setItem(key, value)
   } catch (err: any) {
-    const isQuotaError =
-      err?.name === 'QuotaExceededError' ||
-      err?.name === 'NS_ERROR_DOM_QUOTA_REACHED' ||
-      err?.code === 22 ||
-      err?.code === 1014 ||
-      (typeof err?.message === 'string' &&
-        (err.message.includes('quota') || err.message.includes('Quota')))
-
-    if (!isQuotaError) {
+    if (!isQuotaExceededError(err)) {
       // Outro tipo de erro (ex: storage desabilitado no browser)
       throw err
     }
@@ -649,7 +721,7 @@ export function safeLocalStorageSetItem(key: string, value: string, context?: Pr
       currentRound: context?.currentRound ?? meta.round,
     }
 
-    const pruneResult = pruneStorageData(effectiveContext)
+    const pruneResult = runPreventiveStorageCleanup(effectiveContext)
     console.info(
       `[safeLocalStorageSetItem] Prune liberou ${pruneResult.freedKB} KB (${pruneResult.prunedKeys.length} chaves removidas). Tentando retry único...`,
     )

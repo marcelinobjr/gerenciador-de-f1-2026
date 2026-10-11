@@ -16,7 +16,7 @@ import { canonicalRaceResultService } from '@/services/canonicalRaceResultServic
 import { canonicalCareerPersistenceService } from '@/services/canonicalCareerPersistenceService'
 import { canonicalChampionshipService } from '@/services/canonicalChampionshipService'
 import { resolveCanonicalCareerId } from '@/lib/canonical-career-id'
-import { pruneStorageData } from '@/services/storageQuotaService'
+import { pruneStorageData, runPreventiveStorageCleanup } from '@/services/storageQuotaService'
 import type { OfficialRaceResult } from '@/types/canonical-race-v2'
 import type { SeasonModel, TeamModel } from '@/types/f1'
 
@@ -95,6 +95,15 @@ export async function advanceWeekendRound(
   activeAdvanceLocks.add(lockKey)
 
   try {
+    // Limpeza preventiva antes de avançar se o storage estiver sobrecarregado
+    try {
+      runPreventiveStorageCleanup({
+        careerId: season?.id,
+        currentRound,
+      })
+    } catch (cleanupErr) {
+      console.warn('Aviso: falha não bloqueante na limpeza preventiva:', cleanupErr)
+    }
     const canonicalCareerId = resolveCanonicalCareerId(season, team)
     const seasonYear = season.year || 2026
 
@@ -130,15 +139,26 @@ export async function advanceWeekendRound(
 
     // ETAPA 4: CHAMPIONSHIP UPDATE
     // Gera e persiste o snapshot canônico acumulado da rodada
-    const championshipStandings = canonicalChampionshipService.processAndPersistRoundChampionship(
-      canonicalCareerId,
-      seasonYear,
-      currentRound,
-    )
+    let championshipStandings: any = null
+    try {
+      championshipStandings = canonicalChampionshipService.processAndPersistRoundChampionship(
+        canonicalCareerId,
+        seasonYear,
+        currentRound,
+      )
+    } catch (champErr: any) {
+      console.warn('[advanceWeekendRound] Aviso ao consolidar snapshot local de campeonato:', champErr)
+      // Se falhar localmente (ex: cota), tenta obter ou prosseguir já que a verdade canônica são os race_results
+      championshipStandings = canonicalChampionshipService.getChampionshipStandings(
+        canonicalCareerId,
+        seasonYear,
+        currentRound,
+      )
+    }
 
     if (!championshipStandings) {
-      throw new Error(
-        `Falha ao consolidar classificação do campeonato para a rodada ${currentRound}.`,
+      console.warn(
+        `[advanceWeekendRound] Classificação do campeonato não pôde ser instanciada em memória para a rodada ${currentRound}, prosseguindo via backend.`,
       )
     }
 

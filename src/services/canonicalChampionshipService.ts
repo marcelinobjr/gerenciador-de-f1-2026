@@ -189,12 +189,104 @@ export class CanonicalChampionshipService {
   }
 
   /**
-   * Salva o snapshot no localStorage
+   * Converte um ChampionshipSnapshot em versão podada/slim para persistência local compacta:
+   * Mantém apenas os campos necessários para renderização rápida (top 10 ou dados de pilotos/equipes sem histórico de rodadas intermediárias)
+   */
+  public toSlimSnapshot(snapshot: ChampionshipSnapshot): ChampionshipSnapshot {
+    return {
+      id: snapshot.id,
+      careerId: snapshot.careerId,
+      season: snapshot.season,
+      throughRound: snapshot.throughRound,
+      sourceRaceResultIds: snapshot.sourceRaceResultIds.slice(-2), // apenas últimas 2 rodadas
+      sourceChecksums: snapshot.sourceChecksums.slice(-2),
+      driverStandings: snapshot.driverStandings.map((d) => ({
+        position: d.position,
+        driverId: d.driverId,
+        driverName: d.driverName,
+        nationality: d.nationality,
+        flag: d.flag,
+        points: d.points,
+        wins: d.wins,
+        secondPlaces: d.secondPlaces,
+        thirdPlaces: d.thirdPlaces,
+        fourthPlaces: d.fourthPlaces,
+        podiums: d.podiums,
+        raceStarts: d.raceStarts,
+        racesCounted: d.racesCounted,
+        finishCounts: {}, // descartado no cache local pois o countback já foi aplicado
+        gapToLeader: d.gapToLeader,
+        currentTeamId: d.currentTeamId,
+        currentTeamName: d.currentTeamName,
+        currentTeamColor: d.currentTeamColor,
+        isPlayer: d.isPlayer,
+        positionDelta: d.positionDelta,
+        positionDeltaText: d.positionDeltaText,
+      })),
+      constructorStandings: snapshot.constructorStandings.map((c) => ({
+        position: c.position,
+        teamId: c.teamId,
+        teamName: c.teamName,
+        teamColor: c.teamColor,
+        points: c.points,
+        wins: c.wins,
+        podiums: c.podiums,
+        racesCounted: c.racesCounted,
+        finishCounts: {},
+        gapToLeader: c.gapToLeader,
+        isPlayer: c.isPlayer,
+        positionDelta: c.positionDelta,
+        positionDeltaText: c.positionDeltaText,
+      })),
+      createdAt: snapshot.createdAt,
+      schemaVersion: snapshot.schemaVersion,
+    }
+  }
+
+  /**
+   * Salva o snapshot no localStorage com resiliência a quota.
+   * Não bloqueia se o localStorage estiver cheio ou falhar, pois o backend PocketBase é a fonte da verdade.
    */
   public saveSnapshot(snapshot: ChampionshipSnapshot): void {
     if (typeof window === 'undefined' || !window.localStorage) return
     const key = this.buildSnapshotKey(snapshot.careerId, snapshot.season, snapshot.throughRound)
-    window.localStorage.setItem(key, JSON.stringify(snapshot))
+
+    // Tentar primeiro salvar o snapshot completo
+    try {
+      safeLocalStorageSetItem(key, JSON.stringify(snapshot), {
+        careerId: snapshot.careerId,
+        currentRound: snapshot.throughRound,
+      })
+      return
+    } catch (firstErr) {
+      if (!isQuotaExceededError(firstErr)) {
+        console.warn(`[CanonicalChampionshipService] Erro ao gravar snapshot '${key}':`, firstErr)
+        return
+      }
+    }
+
+    // Se falhou por quota, podar snapshots antigos (< snapshot.throughRound - 1)
+    try {
+      runPreventiveStorageCleanup({
+        careerId: snapshot.careerId,
+        currentRound: snapshot.throughRound,
+      })
+    } catch {
+      /* ignore */
+    }
+
+    // Tentar salvar versão podada (slim)
+    const slim = this.toSlimSnapshot(snapshot)
+    try {
+      window.localStorage.setItem(key, JSON.stringify(slim))
+      console.info(`[CanonicalChampionshipService] Snapshot gravado em versão podada (slim) para '${key}'.`)
+    } catch (slimErr) {
+      console.warn(
+        `[CanonicalChampionshipService] Cota excedida mesmo com snapshot podado para '${key}'. Degradação graciosa para backend-preferred (sem espelho local).`,
+        slimErr,
+      )
+      // Degradação graciosa: segue sem espelho local, a fonte canônica é o PocketBase.
+    }
   }
 
   /**
