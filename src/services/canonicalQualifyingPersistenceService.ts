@@ -965,13 +965,15 @@ export const canonicalQualifyingPersistenceService = {
     seasonId: string,
     round: number,
     stageId: QualifyingStageId,
+    options?: { fallbackSeasonId?: string; seasonYear?: number },
   ): Promise<ReadStageResultOutcome> {
-    const seasonNum = parseInt(String(seasonId).replace(/\D/g, ''), 10) || 1
+    const seasonNum = options?.seasonYear || parseInt(String(seasonId).replace(/\D/g, ''), 10) || 1
     const backendCtx = {
       careerId: seasonId,
       season: seasonNum,
       round,
       stage: stageId,
+      seasonId: options?.fallbackSeasonId,
     }
 
     let backendData: QualifyingStageResult | null = null
@@ -1405,12 +1407,14 @@ export const canonicalQualifyingPersistenceService = {
   async readFinalGridPreferred(
     seasonId: string,
     round: number,
+    options?: { fallbackSeasonId?: string; seasonYear?: number },
   ): Promise<ReadCompleteQualifyingResultOutcome> {
-    const seasonNum = parseInt(String(seasonId).replace(/\D/g, ''), 10) || 1
+    const seasonNum = options?.seasonYear || parseInt(String(seasonId).replace(/\D/g, ''), 10) || 1
     const backendCtx = {
       careerId: seasonId,
       season: seasonNum,
       round,
+      seasonId: options?.fallbackSeasonId,
     }
 
     let backendData: CompleteQualifyingWeekendResult | null = null

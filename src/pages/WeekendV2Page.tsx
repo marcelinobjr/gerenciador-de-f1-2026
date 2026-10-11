@@ -1859,7 +1859,6 @@ export default function WeekendV2Page() {
             })
         }
         // Carregar resultado oficial caso já tenha sido homologado
-        const canonicalCareerId = resolveCanonicalCareerId(season, team)
         const official = canonicalRaceResultService.getOfficialRaceResult(
           canonicalCareerId,
           season.year || 2026,
@@ -5639,16 +5638,10 @@ export default function WeekendV2Page() {
               onResetRace={() => {
                 try {
                   if (!completeQualifyingResult || !team?.id || !season?.id) return
-                  // FW2.1E-F Requisito 18: Se já foi oficializada, bloquear reinício
-                  const canonicalCareerId = resolveCanonicalCareerId(season, team)
-                  if (
-                    canonicalRaceResultService.hasOfficialRaceResult(
-                      canonicalCareerId,
-                      season.year || 2026,
-                      currentRound,
-                      isSprintRaceSession ? 'SPRINT_RACE' : 'MAIN_RACE',
-                    )
-                  ) {
+                  const resolvedCareerIdForRestart = resolveCanonicalCareerId(season, team)
+                  const isSprint = selectedSessionId === 'sprint_race'
+
+                  if (officialRaceResult || canonicalRaceState?.status === 'completed') {
                     toast({
                       variant: 'destructive',
                       title: 'Ação Bloqueada',
@@ -5660,10 +5653,10 @@ export default function WeekendV2Page() {
 
                   // Descartar save da corrida atual (Requisito 13)
                   const clearRes = canonicalRaceInitializationService.clearCanonicalRaceState(
-                    canonicalCareerId,
+                    resolvedCareerIdForRestart,
                     season.year || 2026,
                     currentRound,
-                    { raceVariant: isSprintRaceSession ? 'SPRINT_RACE' : 'MAIN_RACE' },
+                    { raceVariant: isSprint ? 'SPRINT_RACE' : 'MAIN_RACE' },
                   )
                   if (!clearRes.success) {
                     toast({

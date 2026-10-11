@@ -89,10 +89,9 @@ export const SessionPlaceholderCard: React.FC<SessionPlaceholderCardProps> = ({
         ) : isRace ? (
           <Trophy className="w-8 h-8 text-[#E10600]" />
         ) : (
-          <Lock className="w-8 h-8 text-[#64748B]" />
+          <Flag className="w-8 h-8 text-[#E10600]" />
         )}
       </div>
-
       <div className="space-y-2">
         <div className="flex items-center justify-center gap-2">
           <Badge

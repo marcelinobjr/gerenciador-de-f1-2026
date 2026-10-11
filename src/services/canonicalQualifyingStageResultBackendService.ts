@@ -26,6 +26,7 @@ export interface CanonicalQualifyingStageResultBackendContext {
   season: number
   round: number
   stage: QualifyingStageId
+  seasonId?: string
 }
 
 export interface CanonicalQualifyingStageResultBackendRecord {
@@ -112,9 +113,45 @@ export class CanonicalQualifyingStageResultBackendService {
     // 2. Buscar por getFirstListItem com result_key
     try {
       const safeKey = resultKey.replace(/"/g, '\\"')
-      const rec = await collection.getFirstListItem<CanonicalQualifyingStageResultBackendRecord>(
-        `result_key = "${safeKey}"`,
-      )
+      let rec: CanonicalQualifyingStageResultBackendRecord | null = null
+      try {
+        rec = await collection.getFirstListItem<CanonicalQualifyingStageResultBackendRecord>(
+          `result_key = "${safeKey}"`,
+        )
+      } catch (keyErr: any) {
+        if (context.seasonId && context.seasonId !== context.careerId) {
+          const fallbackKey = this.buildResultKey({
+            ...context,
+            careerId: context.seasonId,
+          }).replace(/"/g, '\\"')
+          try {
+            rec = await collection.getFirstListItem<CanonicalQualifyingStageResultBackendRecord>(
+              `result_key = "${fallbackKey}"`,
+            )
+          } catch {
+            rec = null
+          }
+        }
+        if (!rec) {
+          // 3. Fallback adicional resiliente por campos: (career_id = X || career_id = Y) && round = R && stage = S
+          const cId = context.careerId ? context.careerId.replace(/"/g, '\\"') : ''
+          const sId = context.seasonId ? context.seasonId.replace(/"/g, '\\"') : ''
+          const careerFilter =
+            sId && sId !== cId
+              ? `(career_id = "${cId}" || career_id = "${sId}")`
+              : `career_id = "${cId}"`
+          try {
+            rec = await collection.getFirstListItem<CanonicalQualifyingStageResultBackendRecord>(
+              `${careerFilter} && round = ${context.round} && stage = "${context.stage}"`,
+            )
+          } catch {
+            rec = null
+          }
+        }
+        if (!rec) {
+          throw keyErr
+        }
+      }
       if (rec?.id) {
         this.recordIdCache.set(resultKey, rec.id)
       }

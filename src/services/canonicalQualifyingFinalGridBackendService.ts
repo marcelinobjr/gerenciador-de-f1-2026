@@ -24,6 +24,7 @@ export interface CanonicalQualifyingFinalGridBackendContext {
   careerId: string
   season: number
   round: number
+  seasonId?: string
 }
 
 export interface CanonicalQualifyingFinalGridBackendRecord {
@@ -105,12 +106,48 @@ export class CanonicalQualifyingFinalGridBackendService {
       }
     }
 
-    // 2. Buscar por getFirstListItem com grid_key
+    // 2. Buscar por getFirstListItem com grid_key (com fallback de seasonId se fornecida)
     try {
       const safeKey = gridKey.replace(/"/g, '\\"')
-      const rec = await collection.getFirstListItem<CanonicalQualifyingFinalGridBackendRecord>(
-        `grid_key = "${safeKey}"`,
-      )
+      let rec: CanonicalQualifyingFinalGridBackendRecord | null = null
+      try {
+        rec = await collection.getFirstListItem<CanonicalQualifyingFinalGridBackendRecord>(
+          `grid_key = "${safeKey}"`,
+        )
+      } catch (keyErr: any) {
+        if (context.seasonId && context.seasonId !== context.careerId) {
+          const fallbackKey = this.buildGridKey({
+            ...context,
+            careerId: context.seasonId,
+          }).replace(/"/g, '\\"')
+          try {
+            rec = await collection.getFirstListItem<CanonicalQualifyingFinalGridBackendRecord>(
+              `grid_key = "${fallbackKey}"`,
+            )
+          } catch {
+            rec = null
+          }
+        }
+        if (!rec) {
+          // Fallback resiliente por campos: (career_id = X || career_id = Y) && round = R
+          const cId = context.careerId ? context.careerId.replace(/"/g, '\\"') : ''
+          const sId = context.seasonId ? context.seasonId.replace(/"/g, '\\"') : ''
+          const careerFilter =
+            sId && sId !== cId
+              ? `(career_id = "${cId}" || career_id = "${sId}")`
+              : `career_id = "${cId}"`
+          try {
+            rec = await collection.getFirstListItem<CanonicalQualifyingFinalGridBackendRecord>(
+              `${careerFilter} && round = ${context.round}`,
+            )
+          } catch {
+            rec = null
+          }
+        }
+        if (!rec) {
+          throw keyErr
+        }
+      }
       if (rec?.id) {
         this.recordIdCache.set(gridKey, rec.id)
       }
@@ -150,11 +187,13 @@ export class CanonicalQualifyingFinalGridBackendService {
       let isSprint = true
       let stage3Record: any = null
 
-      // Resiliente a career_id canônico ou seasonId legada
+      // Resiliente a career_id canônico ou seasonId legada (career_id = X || career_id = Y)
+      const cId = context.careerId ? context.careerId.replace(/"/g, '\\"') : ''
+      const sId = context.seasonId ? context.seasonId.replace(/"/g, '\\"') : ''
       const careerFilter =
-        context.seasonId && context.seasonId !== context.careerId
-          ? `(career_id = "${context.careerId}" || career_id = "${context.seasonId}")`
-          : `career_id = "${context.careerId}"`
+        sId && sId !== cId
+          ? `(career_id = "${cId}" || career_id = "${sId}")`
+          : `career_id = "${cId}"`
 
       try {
         stage3Record = await stageCol.getFirstListItem(
