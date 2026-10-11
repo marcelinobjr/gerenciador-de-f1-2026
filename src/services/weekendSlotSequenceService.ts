@@ -35,7 +35,7 @@
  * Essas regras pertencem ao futuro 01B, não implementadas no 01A.
  */
 
-import { CIRCUIT_PERFORMANCE_PROFILES } from '@/data/circuit-performance-profiles'
+import { hasSprintWeekend } from '@/services/weekendProgressionService'
 import type {
   WeekendFormat,
   WeekendSlotNumber,
@@ -221,8 +221,7 @@ export const SPRINT_SLOT_TYPES: readonly WeekendSlotType[] = Object.freeze([
  * Não inventa flags concorrentes e não infere por nome do GP.
  */
 export function resolveWeekendFormat(round: number): WeekendFormat {
-  const profile = CIRCUIT_PERFORMANCE_PROFILES.find((c) => c.round === round)
-  return profile?.hasSprint ? 'SPRINT' : 'NORMAL'
+  return hasSprintWeekend(round) ? 'SPRINT' : 'NORMAL'
 }
 
 /**

@@ -566,9 +566,9 @@ export function PracticePreparationView({
             >
               RODADA {round}/24 • TEMPORADA 2026
             </Badge>
-            {circuitProfile?.hasSprint && (
+            {isSprint && (
               <Badge className="bg-purple-500/20 text-purple-300 border-purple-500/30 font-mono text-[10px] font-bold">
-                ⚡ FIM DE SEMANA COM SPRINT (APENAS TL1)
+                ⚡ FIM DE SEMANA COM SPRINT
               </Badge>
             )}
             {canonicalSetupSummary && (

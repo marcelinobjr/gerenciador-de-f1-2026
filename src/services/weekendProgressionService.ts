@@ -194,9 +194,22 @@ export function normalizeCompletedSessions(completedSessions: string[]): string[
 }
 
 /**
+ * Flag mestre central que controla se o formato Sprint está ativo na temporada 2026.
+ * DISABLE-SPRINTS-01A (decisão do usuário): desabilitado na temporada 2026.
+ * Fins de semana com hasSprint no calendário fluem exatamente como GP convencional
+ * (TL1 -> TL2 -> TL3 -> Q1 -> Q2 -> Q3 -> corrida principal).
+ * Para reativar sprints no futuro, basta alterar esta flag para true.
+ */
+export const SPRINT_RACES_ENABLED_2026 = false
+
+/**
  * Localiza se a rodada possui formato Sprint no calendário canônico da FIA 2026.
+ * Retorna true APENAS se as sprints estiverem globalmente ativas e a rodada suportar sprint.
  */
 export function hasSprintWeekend(round: number): boolean {
+  if (!SPRINT_RACES_ENABLED_2026) {
+    return false
+  }
   const profile = CIRCUIT_PERFORMANCE_PROFILES.find((c) => c.round === round)
   return profile?.hasSprint ?? false
 }
