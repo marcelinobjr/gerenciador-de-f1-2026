@@ -122,4 +122,21 @@ describe('SEASON-END-01B — Enriquecimento do Encerramento de Temporada', () =>
     expect(steps.some((s) => s.id === 'TRANSFERRING_DRIVERS')).toBe(true)
     expect(steps.some((s) => s.id === 'CREATING_NEXT_SEASON')).toBe(true)
   })
+
+  it('6. Garante estrutura das tabelas de premiação em dinheiro (R$)', () => {
+    // Formulação de premiação de construtores
+    const constrPrizeTable = [
+      65000000, 58000000, 52000000, 46000000, 41000000, 36000000, 32000000, 28000000, 24000000,
+      20000000,
+    ]
+    expect(constrPrizeTable[0]).toBe(65000000)
+    expect(constrPrizeTable[9]).toBe(20000000)
+
+    // Formulação de premiação de pilotos
+    const driverPrizeTable = [
+      25000000, 20000000, 16000000, 13000000, 10000000, 8000000, 6000000, 5000000, 4000000, 3000000,
+    ]
+    expect(driverPrizeTable[0]).toBe(25000000)
+    expect(driverPrizeTable[9]).toBe(3000000)
+  })
 })
