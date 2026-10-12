@@ -145,6 +145,7 @@ export interface SeasonModel {
   current_round: number
   total_rounds: number
   team_id: string
+  is_completed?: boolean
   last_processed_round?: number
   created?: string
   updated?: string

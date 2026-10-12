@@ -79,10 +79,12 @@ export async function advanceWeekendRound(
   }
 
   // Idempotência: checar se a temporada no banco ou no estado já foi avançada
+  // SEASON-END-01A: Tratamento para rodada final (currentRound >= totalRounds) onde current_round permanece no teto
   if (
     season.last_processed_round &&
     season.last_processed_round >= currentRound &&
-    season.current_round > currentRound
+    (season.current_round > currentRound ||
+      (currentRound >= totalRounds && season.current_round >= totalRounds))
   ) {
     return {
       success: true,
@@ -91,7 +93,6 @@ export async function advanceWeekendRound(
       alreadyAdvanced: true,
     }
   }
-
   activeAdvanceLocks.add(lockKey)
 
   try {
@@ -190,8 +191,10 @@ export async function advanceWeekendRound(
       console.warn('Aviso: falha não bloqueante na evolução de PU Integration:', puErr)
     }
 
-    // ETAPA 5: ROUND ADVANCE (persistência de current_round + 1 e last_processed_round)
-    const nextRound = currentRound + 1
+    // ETAPA 5: ROUND ADVANCE (persistência de current_round e last_processed_round)
+    // SEASON-END-01A: Não ultrapassar totalRounds ao completar a temporada
+    const isSeasonEnd = currentRound >= totalRounds
+    const nextRound = isSeasonEnd ? currentRound : currentRound + 1
     await f1Service.updateSeason(season.id, {
       current_round: nextRound,
       last_processed_round: currentRound,

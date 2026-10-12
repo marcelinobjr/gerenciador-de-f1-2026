@@ -971,18 +971,27 @@ export default function RacePage() {
         return
       }
 
+      const isSeasonEnd = ctx.round >= (season.total_rounds || 24)
       const res = await advanceWeekendRound({
         officialResult: officialRaceResult,
         season,
         team,
         currentRound: ctx.round,
-        totalRounds: 24,
+        totalRounds: season.total_rounds || 24,
         onSuccess: (nextRound) => {
-          toast({
-            title: `Rodada ${ctx.round} Concluída!`,
-            description: `Avançando para a Rodada ${nextRound} da temporada 2026.`,
-          })
-          navigate(`/corrida?round=${nextRound}`)
+          if (isSeasonEnd) {
+            toast({
+              title: `Temporada ${season.year || 2026} Concluída!`,
+              description: `Todas as 24 rodadas foram disputadas. Direcionando para o encerramento da temporada...`,
+            })
+            navigate('/season-end')
+          } else {
+            toast({
+              title: `Rodada ${ctx.round} Concluída!`,
+              description: `Avançando para a Rodada ${nextRound} da temporada 2026.`,
+            })
+            navigate(`/corrida?round=${nextRound}`)
+          }
         },
         onError: (err) => {
           toast({

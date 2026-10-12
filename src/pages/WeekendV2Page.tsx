@@ -27,6 +27,7 @@ import {
   Download,
   Copy,
   Check,
+  ChevronRight,
 } from 'lucide-react'
 import {
   Dialog,
@@ -4292,8 +4293,41 @@ export default function WeekendV2Page() {
 
   const isRaceSession = selectedSessionDef.id === 'race' || isSprintRaceSession
 
+  const isSeasonCompletedPendingTransition = Boolean(
+    season &&
+    (season.last_processed_round || 0) >= (season.total_rounds || 24) &&
+    !season.is_completed,
+  )
+
   return (
     <div className="space-y-6 pb-12">
+      {/* SEASON-END-01A: Banner de Temporada Concluída */}
+      {isSeasonCompletedPendingTransition && (
+        <div className="rounded-xl bg-gradient-to-r from-amber-600 via-amber-500 to-amber-600 text-black p-4 sm:p-5 shadow-lg border border-amber-400 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 animate-fade-in">
+          <div className="space-y-1">
+            <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-black/20 text-black text-[11px] font-mono font-black uppercase tracking-wider">
+              <span>🏆</span>
+              <span>CAMPEONATO OFICIAL CONCLUÍDO (24/24 ETAPAS)</span>
+            </div>
+            <h2 className="text-lg sm:text-xl font-black uppercase tracking-tight text-black">
+              Temporada {season?.year || 2026} Concluída — Encerrar Ano & Iniciar 2027
+            </h2>
+            <p className="text-xs sm:text-sm text-black/85 font-medium max-w-2xl">
+              Todas as 24 rodadas do calendário foram homologadas. Avance para o encerramento
+              oficial da temporada e preparação do novo ano de 2027.
+            </p>
+          </div>
+          <Button
+            type="button"
+            onClick={() => navigate('/season-end')}
+            className="bg-black hover:bg-neutral-900 text-amber-400 font-black text-xs uppercase tracking-wider px-5 py-2.5 h-11 shrink-0 rounded-lg shadow-md flex items-center gap-2 cursor-pointer"
+          >
+            <span>Encerrar Temporada →</span>
+            <ChevronRight className="w-4 h-4 text-amber-400" />
+          </Button>
+        </div>
+      )}
+
       {/* 1. CABEÇALHO PADRÃO APEX GP MANAGER */}
       <PageHeader
         title="CORRIDA"
@@ -5358,11 +5392,13 @@ export default function WeekendV2Page() {
 
                 setIsAdvancingRound(true)
                 try {
+                  const isSeasonEnd = currentRound >= (season.total_rounds || 24)
                   const advanceRes = await advanceWeekendRound({
                     officialResult: officialRaceResult,
                     season,
                     team,
                     currentRound,
+                    totalRounds: season.total_rounds || 24,
                     refreshTeamAndSeason,
                     onError: (err) => {
                       toast({
@@ -5374,11 +5410,19 @@ export default function WeekendV2Page() {
                   })
 
                   if (advanceRes.success) {
-                    toast({
-                      title: `Rodada ${currentRound} Concluída com Sucesso!`,
-                      description: `Temporada avançada para a rodada ${advanceRes.nextRound}.`,
-                    })
-                    navigate('/calendario')
+                    if (isSeasonEnd) {
+                      toast({
+                        title: `Temporada ${season.year || 2026} Concluída!`,
+                        description: `Todas as 24 etapas foram completadas. Redirecionando para o encerramento da temporada...`,
+                      })
+                      navigate('/season-end')
+                    } else {
+                      toast({
+                        title: `Rodada ${currentRound} Concluída com Sucesso!`,
+                        description: `Temporada avançada para a rodada ${advanceRes.nextRound}.`,
+                      })
+                      navigate('/calendario')
+                    }
                   }
                 } catch (advanceErr: any) {
                   toast({

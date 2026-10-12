@@ -18,6 +18,7 @@ import {
   Sparkles,
 } from 'lucide-react'
 import { useUnifiedSeason } from '@/hooks/use-unified-season'
+import { useAuth } from '@/contexts/AuthContext'
 import { seasonTransitionService } from '@/services/seasonTransitionService'
 import {
   teamReplacementService,
@@ -30,6 +31,7 @@ import { toast } from '@/hooks/use-toast'
 export default function SeasonEndPage() {
   const navigate = useNavigate()
   const { team, season } = useUnifiedSeason()
+  const { refreshTeamAndSeason } = useAuth()
 
   const [loading, setLoading] = useState(true)
   const [driverStandings, setDriverStandings] = useState<any[]>([])
@@ -157,12 +159,13 @@ export default function SeasonEndPage() {
 
       if (result.success) {
         setTransitionDone(true)
+        await refreshTeamAndSeason()
         toast({
           title: 'Temporada 2027 Iniciada!',
-          description: 'A virada de ano e o novo regulamento técnico foram aplicados.',
+          description: 'A virada de ano, histórico e nova temporada na R1 foram estabelecidos.',
         })
         setTimeout(() => {
-          navigate('/corrida')
+          navigate('/corrida?round=1')
         }, 1200)
       } else {
         toast({

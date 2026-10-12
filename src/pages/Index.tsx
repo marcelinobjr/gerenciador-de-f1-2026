@@ -446,8 +446,41 @@ export default function IndexPage() {
 
   const teamName = team?.name || 'AUDI F1 TEAM'
 
+  const isSeasonCompletedPendingTransition = Boolean(
+    season &&
+    (season.last_processed_round || 0) >= (season.total_rounds || 24) &&
+    !season.is_completed,
+  )
+
   return (
     <div className="space-y-4 pb-8 text-[#1E293B] antialiased">
+      {/* SEASON-END-01A: Banner de Temporada Concluída */}
+      {isSeasonCompletedPendingTransition && (
+        <div className="rounded-xl bg-gradient-to-r from-amber-600 via-amber-500 to-amber-600 text-black p-4 sm:p-5 shadow-lg border border-amber-400 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 animate-fade-in">
+          <div className="space-y-1">
+            <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-black/20 text-black text-[11px] font-mono font-black uppercase tracking-wider">
+              <span>🏆</span>
+              <span>CAMPEONATO OFICIAL CONCLUÍDO (24/24 ETAPAS)</span>
+            </div>
+            <h2 className="text-lg sm:text-xl font-black uppercase tracking-tight text-black">
+              Temporada {seasonYear} Concluída — Encerrar Ano & Iniciar 2027
+            </h2>
+            <p className="text-xs sm:text-sm text-black/85 font-medium max-w-2xl">
+              Todas as 24 rodadas oficiais foram homologadas. Realize o fechamento contábil,
+              homologação de campeões, auditoria técnica e inicie a Temporada 2027.
+            </p>
+          </div>
+          <Button
+            type="button"
+            onClick={() => navigate('/season-end')}
+            className="bg-black hover:bg-neutral-900 text-amber-400 font-black text-xs uppercase tracking-wider px-5 py-2.5 h-11 shrink-0 rounded-lg shadow-md flex items-center gap-2 cursor-pointer"
+          >
+            <span>Encerrar Temporada →</span>
+            <ChevronRight className="w-4 h-4 text-amber-400" />
+          </Button>
+        </div>
+      )}
+
       {/* ========================================================================= */}
       {/* LINHA 1: HERO EQUIPE + PRÓXIMA CORRIDA                                    */}
       {/* ========================================================================= */}

@@ -313,7 +313,9 @@ export async function advanceRound(params: AdvanceRoundParams): Promise<void> {
     }
 
     // Advance season round & mark last_processed_round to prevent duplicate processing
-    const nextRound = currentRound + 1
+    // SEASON-END-01A: Gate de fim de temporada — quando a rodada oficializada = totalRounds, NÃO incrementar current_round além do teto
+    const isSeasonEnd = currentRound >= totalRounds
+    const nextRound = isSeasonEnd ? currentRound : currentRound + 1
     await f1Service.updateSeason(season.id, {
       current_round: nextRound,
       last_processed_round: currentRound,
@@ -335,18 +337,18 @@ export async function advanceRound(params: AdvanceRoundParams): Promise<void> {
 
     await refreshTeamAndSeason()
 
-    if (nextRound > totalRounds) {
+    if (isSeasonEnd) {
       setSeasonCompleted(true)
       try {
         setIsProcessingSillySeason(true)
         const moves = await f1Service.processEndOfSeasonMarket(season.id, team.id)
         setMarketMoves(moves)
-        setSillySeasonModalOpen(true)
       } catch (sillyErr) {
         console.warn('Erro ao disparar silly season automática:', sillyErr)
       } finally {
         setIsProcessingSillySeason(false)
       }
+      navigate('/season-end')
     } else {
       navigate('/')
     }
