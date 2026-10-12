@@ -16,6 +16,12 @@ import {
   BarChart3,
   TrendingUp,
   Sparkles,
+  DollarSign,
+  Users,
+  Award,
+  Crown,
+  ChevronRight,
+  Shuffle,
 } from 'lucide-react'
 import { useUnifiedSeason } from '@/hooks/use-unified-season'
 import { useAuth } from '@/contexts/AuthContext'
@@ -25,6 +31,7 @@ import {
   EligibleReplacementCandidate,
 } from '@/services/teamReplacementService'
 import { f1Service } from '@/services/f1Service'
+import { canonicalChampionshipService } from '@/services/canonicalChampionshipService'
 import { formatCurrency } from '@/lib/formatters'
 import { toast } from '@/hooks/use-toast'
 
@@ -39,6 +46,12 @@ export default function SeasonEndPage() {
   const [transitionAudit, setTransitionAudit] = useState<any>(null)
   const [isTransitioning, setIsTransitioning] = useState(false)
   const [transitionDone, setTransitionDone] = useState(false)
+  const [marketMoves, setMarketMoves] = useState<any[]>([])
+  const [champions, setChampions] = useState<{
+    driver: any | null
+    constructor: any | null
+  }>({ driver: null, constructor: null })
+  const [playerDriversStandings, setPlayerDriversStandings] = useState<any[]>([])
 
   // Estados de Substituição Opcional da Última Colocada (FIN-SOURCE-01B)
   const [lastPlaceTeam, setLastPlaceTeam] = useState<{
@@ -50,7 +63,7 @@ export default function SeasonEndPage() {
   const [eligibleReplacements, setEligibleReplacements] = useState<EligibleReplacementCandidate[]>(
     [],
   )
-  const [replacementChoice, setReplacementChoice] = useState<'KEEP' | 'REPLACE'>('KEEP')
+  const [replacementChoice, setReplacementChoice] = useState<'KEEP' | 'REPLACE'>('REPLACE')
   const [selectedReplacementKey, setSelectedReplacementKey] = useState<string>('')
   const [decisionConfirmed, setDecisionConfirmed] = useState<boolean>(false)
 
@@ -61,18 +74,145 @@ export default function SeasonEndPage() {
         return
       }
       try {
+        const fromYear = season.year || 2026
+        const careerId = season.id || 'z36hmcbqa75kt7k'
+
+        // 1. Carregar motoristas e equipes base
         const [allDrivers, allTeams] = await Promise.all([
           f1Service.getAllDrivers(),
           f1Service.getAllTeams(),
         ])
-        setDriverStandings(allDrivers || [])
-        setTeamStandings(allTeams || [])
+
+        // 2. Carregar classificação oficial real do campeonato via championship_snapshots
+        let officialDrivers: any[] = []
+        let officialConstructors: any[] = []
+
+        try {
+          const snapshot = await canonicalChampionshipService.getChampionshipStandingsAsync(
+            careerId,
+            fromYear,
+            24,
+            team?.id,
+          )
+
+          if (snapshot && snapshot.driverStandings && snapshot.driverStandings.length > 0) {
+            officialDrivers = snapshot.driverStandings.map((ds: any) => ({
+              ...ds,
+              id: ds.driverId,
+              name: ds.driverName,
+              teamName: ds.currentTeamName || ds.teamName || 'Equipe',
+            }))
+          }
+          if (
+            snapshot &&
+            snapshot.constructorStandings &&
+            snapshot.constructorStandings.length > 0
+          ) {
+            officialConstructors = snapshot.constructorStandings.map((cs: any) => ({
+              ...cs,
+              teamId: cs.teamId,
+              teamName: cs.teamName,
+              points: cs.points,
+              rank: cs.position,
+            }))
+          }
+        } catch (snapErr) {
+          console.warn('Erro ao carregar snapshot canônico, usando fallback f1Service:', snapErr)
+        }
+
+        // Fallbacks se snapshot estiver vazio
+        if (officialDrivers.length === 0) {
+          officialDrivers = [...(allDrivers || [])].sort(
+            (a: any, b: any) => (b.points || 0) - (a.points || 0),
+          )
+        }
+        if (officialConstructors.length === 0) {
+          officialConstructors = [...(allTeams || [])].sort(
+            (a: any, b: any) => (b.points || 0) - (a.points || 0),
+          )
+        }
+
+        setDriverStandings(officialDrivers)
+        setTeamStandings(officialConstructors)
+
+        // Definir Campeões Oficiais (1º colocado)
+        if (officialDrivers.length > 0) {
+          setChampions((prev) => ({ ...prev, driver: officialDrivers[0] }))
+        }
+        if (officialConstructors.length > 0) {
+          setChampions((prev) => ({ ...prev, constructor: officialConstructors[0] }))
+        }
+
+        // Identificar pilotos da equipe do jogador e suas posições
+        const myTeamId = team?.id
+        const myDrivers = (allDrivers || []).filter((d: any) => d.team_id === myTeamId)
+        const myDriversWithStandings = myDrivers.map((d: any) => {
+          const standingIdx = officialDrivers.findIndex(
+            (od: any) => od.id === d.id || od.driverId === d.id || od.name === d.name,
+          )
+          const rank = standingIdx !== -1 ? standingIdx + 1 : 99
+          const standingItem = standingIdx !== -1 ? officialDrivers[standingIdx] : null
+          const points = standingItem?.points ?? d.points ?? 0
+          return {
+            ...d,
+            rank,
+            points,
+          }
+        })
+        setPlayerDriversStandings(myDriversWithStandings)
+
+        // Carregar "Dança das Cadeiras" (movimentos de mercado)
+        // 1) Checar pilotos que têm next_team_id ou future_contract
+        const transfers: any[] = []
+        for (const drv of allDrivers || []) {
+          const nextTeamId = drv.next_team_id || drv.future_contract?.teamId
+          if (nextTeamId && nextTeamId !== drv.team_id) {
+            const originTeam = allTeams.find((t: any) => t.id === drv.team_id)
+            const destTeam = allTeams.find((t: any) => t.id === nextTeamId)
+            transfers.push({
+              driverName: drv.name,
+              nationality: drv.nationality,
+              originTeamName: originTeam?.name || 'Agente Livre / Base',
+              destinationTeamName: destTeam?.name || 'Nova Equipe',
+              role: drv.next_contract_role || drv.future_contract?.role || 'Titular',
+              type: 'CONFIRMED',
+            })
+          } else if (drv.contract_end && drv.contract_end <= fromYear && !nextTeamId) {
+            const originTeam = allTeams.find((t: any) => t.id === drv.team_id)
+            transfers.push({
+              driverName: drv.name,
+              nationality: drv.nationality,
+              originTeamName: originTeam?.name || 'F1',
+              destinationTeamName: 'Mercado (Agente Livre)',
+              role: 'Disponível',
+              type: 'FREE_AGENT',
+            })
+          }
+        }
+
+        // Se season tem market_moves armazenados, mesclar
+        if (Array.isArray(season.market_moves) && season.market_moves.length > 0) {
+          for (const m of season.market_moves as any[]) {
+            if (!transfers.some((t) => t.driverName === m.driverName)) {
+              transfers.push({
+                driverName: m.driverName || 'Piloto',
+                nationality: '',
+                originTeamName: 'Grid 2026',
+                destinationTeamName: m.destinationTeam || m.targetTeamName || 'Equipe 2027',
+                role: 'Titular',
+                type: 'CONFIRMED',
+                details: m.details || m.headline,
+              })
+            }
+          }
+        }
+        setMarketMoves(transfers)
 
         // Identificar canonicamente a última colocada do construtores
-        const last = teamReplacementService.identifyLastPlaceTeam(allTeams || [])
+        const last = teamReplacementService.identifyLastPlaceTeam(officialConstructors)
         if (last) {
           setLastPlaceTeam(last)
-          const currentKeys = (allTeams || []).map((t: any) => t.key || t.name)
+          const currentKeys = (allTeams || []).map((t: any) => t.key || t.team_key || t.name)
           const candidates = teamReplacementService.getEligibleReplacementTeams(currentKeys)
           setEligibleReplacements(candidates)
           if (candidates.length > 0) {
@@ -80,10 +220,9 @@ export default function SeasonEndPage() {
           }
 
           // Verificar se já há decisão persistida
-          const fromY = season.year || 2026
-          const toY = fromY + 1
+          const toY = fromYear + 1
           const persisted = await teamReplacementService.getPersistedReplacementDecision(
-            fromY,
+            fromYear,
             toY,
             last.teamId,
           )
@@ -100,8 +239,8 @@ export default function SeasonEndPage() {
         if (team) {
           try {
             const auditRes = await seasonTransitionService.auditSeasonTransition(
-              season.year || 2026,
-              (season.year || 2026) + 1,
+              fromYear,
+              fromYear + 1,
               team.id,
             )
             setTransitionAudit(auditRes)
@@ -118,9 +257,41 @@ export default function SeasonEndPage() {
     loadStandings()
   }, [season, team])
 
-  const playerTeamStanding = teamStandings.find((s) => s.teamId === team?.id)
+  // Cálculo da Premiação da Equipe (Construtores)
+  // Tabela oficial do jogo / seasonTransitionService:
+  // P1: R$ 65M, P2: R$ 58M, P3: R$ 52M, P4: R$ 46M, P5: R$ 41M, P6: R$ 36M, P7: R$ 32M, P8: R$ 28M, P9: R$ 24M, P10: R$ 20M, P11+: R$ 15M
+  const getConstructorPrize = (rank: number) => {
+    const table = [
+      65000000, 58000000, 52000000, 46000000, 41000000, 36000000, 32000000, 28000000, 24000000,
+      20000000,
+    ]
+    return table[rank - 1] || 15000000
+  }
+
+  // Tabela de Premiação por Desempenho dos Pilotos (bônus ao caixa da equipe pelo resultado no Mundial de Pilotos):
+  // P1: R$ 25M, P2: R$ 20M, P3: R$ 16M, P4: R$ 13M, P5: R$ 10M, P6: R$ 8M, P7: R$ 6M, P8: R$ 5M, P9: R$ 4M, P10: R$ 3M, P11-15: R$ 2M, P16+: R$ 1M
+  const getDriverPrize = (rank: number) => {
+    const driverPrizeTable = [
+      25000000, 20000000, 16000000, 13000000, 10000000, 8000000, 6000000, 5000000, 4000000, 3000000,
+    ]
+    if (rank <= 10) return driverPrizeTable[rank - 1] || 3000000
+    if (rank <= 15) return 2000000
+    return 1000000
+  }
+
+  const playerTeamStanding = teamStandings.find((s) => s.teamId === team?.id || s.id === team?.id)
   const playerRank =
-    playerTeamStanding?.rank || teamStandings.findIndex((s) => s.teamId === team?.id) + 1 || 1
+    playerTeamStanding?.rank ||
+    playerTeamStanding?.position ||
+    teamStandings.findIndex((s) => s.teamId === team?.id || s.id === team?.id) + 1 ||
+    1
+
+  const teamPrizeMoney = getConstructorPrize(playerRank)
+  const totalDriversPrize = playerDriversStandings.reduce(
+    (acc, d) => acc + getDriverPrize(d.rank || 15),
+    0,
+  )
+  const grandTotalPrize = teamPrizeMoney + totalDriversPrize
 
   const handleStartNextSeason = async () => {
     if (!team || !season || isTransitioning) return
@@ -202,34 +373,98 @@ export default function SeasonEndPage() {
         }
       />
 
-      {/* Hero: Resumo da Equipe do Jogador */}
-      <Card className="bg-[#090D15]/90 border border-amber-500/40 p-6 shadow-2xl backdrop-blur-md">
-        <div className="flex flex-col md:flex-row items-center justify-between gap-6">
+      {/* DESTAQUE: CAMPEÕES DO MUNDO 2026 (PILOTOS E CONSTRUTORES) */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        {/* Campeão de Pilotos */}
+        <Card className="relative overflow-hidden bg-gradient-to-br from-[#1c1809] via-[#0f0e08] to-[#090D15] border border-amber-500/50 p-6 shadow-2xl">
+          <div className="absolute top-0 right-0 -mt-4 -mr-4 w-32 h-32 bg-amber-500/10 rounded-full blur-2xl pointer-events-none" />
+          <div className="flex items-start justify-between">
+            <div>
+              <Badge className="bg-amber-500/20 text-amber-400 border-amber-500/40 text-[10px] font-mono font-bold uppercase tracking-wider mb-2">
+                <Crown className="w-3 h-3 mr-1 text-amber-400 inline" />
+                Campeão Mundial de Pilotos
+              </Badge>
+              <h3 className="text-2xl font-black text-white mt-1">
+                {champions.driver?.name || champions.driver?.driverName || 'Max Verstappen'}
+              </h3>
+              <p className="text-xs text-amber-300/80 font-mono mt-0.5">
+                {champions.driver?.teamName || 'Equipe Campeã'} &bull;{' '}
+                <span className="font-bold text-white">{champions.driver?.points ?? 0} pontos</span>
+              </p>
+            </div>
+            <div className="w-14 h-14 rounded-2xl bg-amber-500/20 border border-amber-500/40 text-amber-400 flex items-center justify-center shrink-0 shadow-lg">
+              <Trophy className="w-7 h-7" />
+            </div>
+          </div>
+          <div className="mt-4 pt-4 border-t border-amber-500/20 flex items-center justify-between text-[11px] font-mono text-[#8B95A7]">
+            <span>Vencedor oficial homologado da temporada 2026</span>
+            <span className="text-amber-400 font-bold">P1 MUNDIAL</span>
+          </div>
+        </Card>
+
+        {/* Campeão de Construtores */}
+        <Card className="relative overflow-hidden bg-gradient-to-br from-[#0c1a24] via-[#09121a] to-[#090D15] border border-cyan-500/50 p-6 shadow-2xl">
+          <div className="absolute top-0 right-0 -mt-4 -mr-4 w-32 h-32 bg-cyan-500/10 rounded-full blur-2xl pointer-events-none" />
+          <div className="flex items-start justify-between">
+            <div>
+              <Badge className="bg-cyan-500/20 text-cyan-400 border-cyan-500/40 text-[10px] font-mono font-bold uppercase tracking-wider mb-2">
+                <Award className="w-3 h-3 mr-1 text-cyan-400 inline" />
+                Campeão Mundial de Construtores
+              </Badge>
+              <h3 className="text-2xl font-black text-white mt-1">
+                {champions.constructor?.teamName ||
+                  champions.constructor?.name ||
+                  'McLaren F1 Team'}
+              </h3>
+              <p className="text-xs text-cyan-300/80 font-mono mt-0.5">
+                Título Oficial da FIA &bull;{' '}
+                <span className="font-bold text-white">
+                  {champions.constructor?.points ?? 0} pontos
+                </span>
+              </p>
+            </div>
+            <div className="w-14 h-14 rounded-2xl bg-cyan-500/20 border border-cyan-500/40 text-cyan-400 flex items-center justify-center shrink-0 shadow-lg">
+              <Award className="w-7 h-7" />
+            </div>
+          </div>
+          <div className="mt-4 pt-4 border-t border-cyan-500/20 flex items-center justify-between text-[11px] font-mono text-[#8B95A7]">
+            <span>Maior pontuação acumulada de construtores</span>
+            <span className="text-cyan-400 font-bold">P1 CONSTRUTORES</span>
+          </div>
+        </Card>
+      </div>
+
+      {/* BLOCO DA EQUIPE DO JOGADOR + POSIÇÕES DOS PILOTOS E PREMIAÇÕES EM DINHEIRO (R$) */}
+      <Card className="bg-[#090D15]/95 border-2 border-emerald-500/40 p-6 shadow-2xl backdrop-blur-md">
+        <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-6 pb-6 border-b border-[#1F2733]">
           <div className="flex items-center gap-4">
-            <div className="w-16 h-16 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-amber-400 flex items-center justify-center shrink-0">
-              <Trophy className="w-8 h-8" />
+            <div className="w-16 h-16 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 flex items-center justify-center shrink-0">
+              <DollarSign className="w-8 h-8" />
             </div>
             <div>
-              <span className="text-[10px] font-mono uppercase tracking-widest text-amber-400 font-bold block">
-                ESCUDERIA DO JOGADOR // POSIÇÃO MUNDIAL
+              <span className="text-[10px] font-mono uppercase tracking-widest text-emerald-400 font-bold block">
+                SUA ESCUDERIA // RESULTADO OFICIAL & PREMIAÇÃO
               </span>
-              <h2 className="text-2xl font-black text-white">{team?.name || 'Sua Equipe'}</h2>
+              <h2 className="text-2xl font-black text-white flex items-center gap-3">
+                {team?.name || 'Audi F1 Team'}
+                <Badge className="bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 text-xs font-mono">
+                  Construtores P{playerRank}
+                </Badge>
+              </h2>
               <p className="text-xs text-[#8B95A7] font-mono mt-1">
-                Concluiu o Campeonato Mundial de Construtores em{' '}
-                <span className="text-white font-bold">P{playerRank}</span> com{' '}
-                <span className="text-emerald-400 font-bold">
-                  {playerTeamStanding?.points || 0} pts
+                Total acumulado de premiação em dinheiro (FIA Prize Money + Desempenho):{' '}
+                <span className="text-emerald-400 font-black text-sm">
+                  {formatCurrency(grandTotalPrize)}
                 </span>
-                .
               </p>
             </div>
           </div>
 
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-3 w-full lg:w-auto justify-end">
             <Button
               onClick={handleStartNextSeason}
               disabled={isTransitioning || transitionDone}
-              className="bg-amber-500 hover:bg-amber-600 text-black font-extrabold px-6 py-6 text-sm shadow-xl flex items-center gap-2"
+              className="bg-emerald-500 hover:bg-emerald-600 text-black font-extrabold px-6 py-6 text-sm shadow-xl flex items-center gap-2 w-full sm:w-auto justify-center"
             >
               {isTransitioning ? (
                 <>
@@ -249,6 +484,53 @@ export default function SeasonEndPage() {
               )}
             </Button>
           </div>
+        </div>
+
+        {/* Detalhamento das Premiações da Equipe e dos Pilotos */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-6">
+          {/* Card 1: Premiação Construtores */}
+          <div className="p-4 rounded-xl bg-[#11161F] border border-[#1F2733] space-y-2">
+            <div className="flex items-center justify-between">
+              <span className="text-[10px] font-mono text-[#8B95A7] uppercase">
+                Mundial de Construtores
+              </span>
+              <Badge className="bg-emerald-950 text-emerald-400 border border-emerald-800 text-[10px] font-mono">
+                P{playerRank}
+              </Badge>
+            </div>
+            <div className="text-xl font-black text-white">{formatCurrency(teamPrizeMoney)}</div>
+            <p className="text-[11px] font-mono text-[#8B95A7]">
+              Premiação oficial da FIA por posição no campeonato de construtores (
+              {playerTeamStanding?.points || 0} pts).
+            </p>
+          </div>
+
+          {/* Card 2 & 3: Pilotos do Jogador */}
+          {playerDriversStandings.map((pDriver: any, idx: number) => {
+            const driverPrize = getDriverPrize(pDriver.rank || 15)
+            return (
+              <div
+                key={pDriver.id || idx}
+                className="p-4 rounded-xl bg-[#11161F] border border-[#1F2733] space-y-2"
+              >
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] font-mono text-cyan-400 uppercase font-bold truncate">
+                    Piloto #{idx + 1}: {pDriver.name}
+                  </span>
+                  <Badge className="bg-cyan-950 text-cyan-300 border border-cyan-800 text-[10px] font-mono">
+                    P{pDriver.rank} ({pDriver.points} pts)
+                  </Badge>
+                </div>
+                <div className="text-xl font-black text-emerald-400">
+                  {formatCurrency(driverPrize)}
+                </div>
+                <p className="text-[11px] font-mono text-[#8B95A7]">
+                  Bônus financeiro esportivo aportado ao caixa pelo desempenho no campeonato de
+                  pilotos.
+                </p>
+              </div>
+            )
+          })}
         </div>
       </Card>
 
@@ -328,23 +610,37 @@ export default function SeasonEndPage() {
                   </p>
                 ) : (
                   <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
-                    {eligibleReplacements.slice(0, 6).map((cand) => (
+                    {eligibleReplacements.map((cand) => (
                       <div
                         key={cand.key}
-                        onClick={() => setSelectedReplacementKey(cand.key)}
+                        onClick={() => {
+                          setSelectedReplacementKey(cand.key)
+                          setDecisionConfirmed(false)
+                        }}
                         className={`p-3 rounded-lg border cursor-pointer transition-all text-xs font-mono ${
                           selectedReplacementKey === cand.key
-                            ? 'bg-indigo-500/20 border-indigo-500 text-white font-bold ring-1 ring-indigo-500'
+                            ? 'bg-indigo-500/20 border-indigo-500 text-white font-bold ring-2 ring-indigo-500/60 shadow-lg'
                             : 'bg-[#090D15] border-[#1F2733] text-slate-300 hover:border-indigo-500/50'
                         }`}
                       >
                         <div className="flex items-center justify-between mb-1">
-                          <span className="font-bold text-white truncate">{cand.name}</span>
-                          <span className="text-[10px] text-indigo-400">{cand.country}</span>
+                          <span className="font-bold text-white truncate flex items-center gap-1.5">
+                            <span
+                              className="w-2.5 h-2.5 rounded-full inline-block shrink-0"
+                              style={{ backgroundColor: cand.color || '#6366f1' }}
+                            />
+                            {cand.name}
+                          </span>
+                          <span className="text-[10px] text-indigo-400 shrink-0">
+                            {cand.country}
+                          </span>
                         </div>
                         <div className="text-[11px] text-[#8B95A7]">
                           Motor: <span className="text-white">{cand.engine}</span> • Força:{' '}
                           <span className="text-emerald-400">{cand.strength}</span>
+                        </div>
+                        <div className="text-[10px] text-cyan-400 font-mono">
+                          Orçamento: {formatCurrency(cand.budget || 100000000)}
                         </div>
                         <div className="text-[10px] text-[#8B95A7] truncate mt-1">
                           {cand.currentSituation || cand.historySummary}
@@ -353,7 +649,6 @@ export default function SeasonEndPage() {
                     ))}
                   </div>
                 )}
-
                 <div className="flex items-center justify-between pt-2 border-t border-[#1F2733]">
                   <span className="text-xs font-mono text-[#8B95A7]">
                     Confirmação explícita requerida para aplicar na nova temporada.
@@ -486,6 +781,92 @@ export default function SeasonEndPage() {
           </CardContent>
         </Card>
       </div>
+
+      {/* BLOCO: DANÇA DAS CADEIRAS (MERCADO DE PILOTOS ENTRE TEMPORADAS 2026 -> 2027) */}
+      <Card className="bg-[#090D15]/90 border border-violet-500/40 p-6 shadow-2xl backdrop-blur-md">
+        <CardHeader className="p-0 pb-4 border-b border-violet-500/20">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
+            <div>
+              <span className="text-[10px] font-mono uppercase tracking-widest text-violet-400 font-bold block flex items-center gap-1.5">
+                <Shuffle className="w-3.5 h-3.5" />
+                MERCADO DE PILOTOS // DANÇA DAS CADEIRAS
+              </span>
+              <CardTitle className="text-lg font-bold text-white flex items-center gap-2 mt-1">
+                Transferências e Movimentações para a Temporada 2027
+              </CardTitle>
+            </div>
+            <Badge
+              variant="outline"
+              className="text-xs font-mono border-violet-500/50 text-violet-300"
+            >
+              {marketMoves.length} movimentações registradas
+            </Badge>
+          </div>
+          <CardDescription className="text-xs text-[#8B95A7] font-mono mt-2">
+            Acompanhe quem foi para onde: trocas de escuderia, renovações estratégicas, promoções de
+            base e pilotos sem contrato que viraram agentes livres.
+          </CardDescription>
+        </CardHeader>
+
+        <CardContent className="p-0 pt-4">
+          {marketMoves.length === 0 ? (
+            <div className="p-6 text-center text-xs font-mono text-[#8B95A7]">
+              O grid de 2027 mantém estabilidade em seus contratos titulares. Nenhuma troca
+              pendente.
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-left font-mono text-xs border-collapse">
+                <thead>
+                  <tr className="border-b border-[#1F2733] bg-[#11161F] text-[#8B95A7] text-[10px] uppercase">
+                    <th className="py-2.5 px-3 font-bold">Piloto</th>
+                    <th className="py-2.5 px-3 font-bold">Equipe de Origem (2026)</th>
+                    <th className="py-2.5 px-3 font-bold">Destino Oficial (2027)</th>
+                    <th className="py-2.5 px-3 font-bold">Assento / Papel</th>
+                    <th className="py-2.5 px-3 font-bold text-right">Status</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-[#1F2733]">
+                  {marketMoves.map((move, idx) => (
+                    <tr key={idx} className="hover:bg-[#11161F]/60 transition-colors">
+                      <td className="py-3 px-3 font-bold text-white flex items-center gap-2">
+                        <Users className="w-3.5 h-3.5 text-violet-400 shrink-0" />
+                        <span>{move.driverName}</span>
+                      </td>
+                      <td className="py-3 px-3 text-[#8B95A7]">{move.originTeamName}</td>
+                      <td className="py-3 px-3 font-semibold text-cyan-300">
+                        <div className="flex items-center gap-1.5">
+                          <ArrowRight className="w-3 h-3 text-violet-400 shrink-0" />
+                          <span>{move.destinationTeamName}</span>
+                        </div>
+                      </td>
+                      <td className="py-3 px-3 text-slate-300">
+                        <Badge
+                          variant="outline"
+                          className="text-[10px] font-mono border-[#1F2733] text-slate-300"
+                        >
+                          {move.role}
+                        </Badge>
+                      </td>
+                      <td className="py-3 px-3 text-right">
+                        <Badge
+                          className={
+                            move.type === 'CONFIRMED'
+                              ? 'bg-emerald-950 text-emerald-400 border border-emerald-800 text-[10px]'
+                              : 'bg-amber-950 text-amber-400 border border-amber-800 text-[10px]'
+                          }
+                        >
+                          {move.type === 'CONFIRMED' ? 'Contrato Assinado' : 'Agente Livre'}
+                        </Badge>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
       {/* BLOCO: DESENVOLVIMENTO & DECLÍNIO DE PILOTOS (8B - Regra 99) */}
       <Card className="bg-[#090D15]/80 border border-[#1F2733] p-5">

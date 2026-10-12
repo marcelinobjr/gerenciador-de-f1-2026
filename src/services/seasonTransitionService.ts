@@ -618,7 +618,8 @@ export class SeasonTransitionService {
             persistedDecision.replacementTeamKey &&
             !persistedDecision.applied
           ) {
-            // Efetivar substituição de vaga mantendo a integridade histórica da que sai
+            // Efetivar substituição de vaga no banco mantendo a integridade histórica da que sai
+            await teamReplacementService.executeGridReplacementInDatabase(persistedDecision)
             persistedDecision.applied = true
             persistedDecision.appliedAt = new Date().toISOString()
             await teamReplacementService.saveReplacementDecision(persistedDecision)
@@ -881,7 +882,30 @@ export class SeasonTransitionService {
       65000000, 58000000, 52000000, 46000000, 41000000, 36000000, 32000000, 28000000, 24000000,
       20000000,
     ]
-    const prizeMoney = prizeMoneyTable[playerRank - 1] || 15000000
+    const constrPrizeMoney = prizeMoneyTable[playerRank - 1] || 15000000
+
+    // Computar premiação dos pilotos da equipe do jogador
+    let driversPrizeMoney = 0
+    try {
+      const drivers = await f1Service.getTeamDrivers(team.id)
+      const driverPrizeTable = [
+        25000000, 20000000, 16000000, 13000000, 10000000, 8000000, 6000000, 5000000, 4000000,
+        3000000,
+      ]
+      for (const d of drivers) {
+        if (d.role === 'titular') {
+          // buscar rank se disponível
+          const rank = (d as any).bestPosition || 10
+          const p =
+            rank <= 10 ? driverPrizeTable[rank - 1] || 3000000 : rank <= 15 ? 2000000 : 1000000
+          driversPrizeMoney += p
+        }
+      }
+    } catch {
+      driversPrizeMoney = 6000000 // default razoável para 2 pilotos
+    }
+
+    const prizeMoney = constrPrizeMoney + driversPrizeMoney
 
     // Pagamento idempotente de Prize Money no Ledger
     await financialLedgerService.recordEntry({
@@ -895,7 +919,7 @@ export class SeasonTransitionService {
       cost_cap_impact: 0,
       cost_cap_classification: 'excluded',
       idempotency_key: `prize_money_${transitionKey}`,
-      description: `Premiação oficial da FIA — ${playerRank}º lugar nos Construtores ${seasonYear}`,
+      description: `Premiação oficial da FIA — Construtores (${playerRank}º lugar: R$ ${(constrPrizeMoney / 1e6).toFixed(1)}M) e Pilotos (R$ ${(driversPrizeMoney / 1e6).toFixed(1)}M) ${seasonYear}`,
     })
 
     const finalSpend = team.cost_cap_spent || 128000000
