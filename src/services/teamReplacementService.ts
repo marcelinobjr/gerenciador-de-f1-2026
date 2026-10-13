@@ -236,7 +236,30 @@ export class TeamReplacementService {
         return existing.snapshot_data.replacementDecision as ReplacementRecord
       }
     } catch {
-      // Nenhum registro encontrado no PocketBase
+      // Nenhum registro encontrado por transition_key exata no PocketBase
+    }
+
+    // Busca ampla resiliente: verificar se há transição do ano gravada contendo a decisão
+    try {
+      const records = await pb.collection('season_transitions').getList(1, 10, {
+        filter: `from_season = ${fromSeasonYear} && to_season = ${toSeasonYear}`,
+        sort: '-created',
+      })
+
+      for (const rec of records.items) {
+        if (rec.snapshot_data?.replacementDecision) {
+          const dec = rec.snapshot_data.replacementDecision as ReplacementRecord
+          if (
+            !teamId ||
+            dec.lastPlaceTeamId === teamId ||
+            dec.lastPlaceTeamName?.toLowerCase().includes('mercedes')
+          ) {
+            return dec
+          }
+        }
+      }
+    } catch {
+      // tolerância
     }
 
     // Fallback de armazenamento local estruturado

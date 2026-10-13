@@ -194,21 +194,27 @@ export class SeasonTransitionService {
    * Detecta se há uma transição RUNNING órfã (iniciada há mais de 3 minutos sem progresso)
    */
   public async detectOrphanTransition(params: {
-    teamId: string
+    teamId?: string
     fromSeasonYear: number
     toSeasonYear: number
   }): Promise<{ isOrphan: boolean; transitionRecord: any | null }> {
     const { teamId, fromSeasonYear, toSeasonYear } = params
-    const transitionKey = `${fromSeasonYear}->${toSeasonYear}_${teamId}`
     try {
-      const existing = await pb
-        .collection('season_transitions')
-        .getFirstListItem(`transition_key="${transitionKey}"`)
-      if (existing && existing.status === 'RUNNING' && !existing.completed_at) {
+      let filter = `from_season = ${fromSeasonYear} && to_season = ${toSeasonYear} && status = "RUNNING" && completed_at = ""`
+      if (teamId) {
+        filter = `(transition_key="${fromSeasonYear}->${toSeasonYear}_${teamId}" || (${filter}))`
+      }
+      const records = await pb.collection('season_transitions').getList(1, 5, {
+        filter,
+        sort: '-created',
+      })
+
+      if (records.items.length > 0) {
+        const existing = records.items[0]
         const lastUpdated = new Date(existing.updated || existing.created).getTime()
         const now = Date.now()
-        // Mais de 2 minutos sem atualização é considerado órfão / travado
-        const isOrphan = now - lastUpdated > 120000
+        // Mais de 1 minuto sem atualização ou parado em VALIDATING sem conclusão é considerado órfão
+        const isOrphan = now - lastUpdated > 60000 || existing.current_step === 'VALIDATING'
         return { isOrphan, transitionRecord: existing }
       }
     } catch {
