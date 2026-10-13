@@ -123,9 +123,9 @@ export const ROUTE_TITLE_MAP: Record<string, string> = {
   '/weekend-v2': 'Corrida',
   '/calendario': 'Calendário Oficial',
   '/standings': 'Campeonato Mundial',
-  '/paddock': 'EQUIPES',
+  '/teams': 'Equipes & Grid da Temporada',
+  '/paddock': 'Universo F1',
   '/historico': 'Histórico',
-  '/teams': 'Grid da Temporada',
   '/regulamento': 'Regulamento FIA',
 }
 

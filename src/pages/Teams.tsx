@@ -38,6 +38,7 @@ import {
 import alpineImg from '@/assets/alpine-88dda.png'
 import astonMartinImg from '@/assets/astonmartin-eee41.png'
 import audiImg from '@/assets/audi-13288.png'
+import { Link } from 'react-router-dom'
 import {
   Shield,
   Zap,
@@ -53,6 +54,7 @@ import {
   ChevronRight,
   Gauge,
   TrendingDown,
+  Globe,
 } from 'lucide-react'
 
 // Mapa de fotos estáticas oficiais de monopostos 2026 por team_key
@@ -1315,9 +1317,9 @@ export default function TeamsPage() {
 
       {/* PageHeader padrão Race Operations */}
       <PageHeader
-        eyebrow={`RACE OPERATIONS // GRID ${season?.year || 2026}`}
-        title={`Grid da Temporada ${season?.year || 2026}`}
-        description={`As 11 construtoras da temporada ${season?.year || 2026}, hierarquia técnica oficial da FIA, unidades de potência, elenco de pilotos e posição no Mundial de Construtores.`}
+        eyebrow={`RACE OPERATIONS // GRID ${seasonYear}`}
+        title={`Grid da Temporada ${seasonYear}`}
+        description={`As ${allDisplayTeams.length} construtoras da temporada ${seasonYear}, hierarquia técnica oficial da FIA, unidades de potência, elenco de pilotos e posição no Mundial de Construtores.`}
         badge={
           <div className="flex items-center gap-2">
             <Badge
@@ -1336,33 +1338,43 @@ export default function TeamsPage() {
           </div>
         }
         actions={
-          <div className="flex items-center gap-1 p-1 bg-[#11161F] border border-[#1F2733] rounded-lg">
-            <button
-              type="button"
-              onClick={() => setViewMode('table')}
-              className={`p-1.5 rounded-md text-xs transition-colors cursor-pointer flex items-center gap-1.5 ${
-                viewMode === 'table'
-                  ? 'bg-[#161D29] text-white font-semibold shadow-sm'
-                  : 'text-[#8B95A7] hover:text-[#F5F7FA]'
-              }`}
-              title="Visualização em Tabela"
+          <div className="flex items-center gap-2">
+            <Link
+              to="/paddock"
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-[#11161F] text-[#8B95A7] hover:text-[#F5F7FA] hover:bg-[#161D29] border border-[#1F2733] transition-colors shadow-xs"
+              title="Explorar Universo F1 (28 Equipes & Catálogo Histórico)"
             >
-              <TableIcon className="w-3.5 h-3.5" />
-              <span className="hidden sm:inline">Tabela</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => setViewMode('cards')}
-              className={`p-1.5 rounded-md text-xs transition-colors cursor-pointer flex items-center gap-1.5 ${
-                viewMode === 'cards'
-                  ? 'bg-[#161D29] text-white font-semibold shadow-sm'
-                  : 'text-[#8B95A7] hover:text-[#F5F7FA]'
-              }`}
-              title="Visualização em Cards Detalhados"
-            >
-              <LayoutGrid className="w-3.5 h-3.5" />
-              <span className="hidden sm:inline">Cards</span>
-            </button>
+              <Globe className="w-3.5 h-3.5 text-cyan-400" />
+              <span>Universo F1</span>
+            </Link>
+            <div className="flex items-center gap-1 p-1 bg-[#11161F] border border-[#1F2733] rounded-lg">
+              <button
+                type="button"
+                onClick={() => setViewMode('table')}
+                className={`p-1.5 rounded-md text-xs transition-colors cursor-pointer flex items-center gap-1.5 ${
+                  viewMode === 'table'
+                    ? 'bg-[#161D29] text-white font-semibold shadow-sm'
+                    : 'text-[#8B95A7] hover:text-[#F5F7FA]'
+                }`}
+                title="Visualização em Tabela"
+              >
+                <TableIcon className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline">Tabela</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setViewMode('cards')}
+                className={`p-1.5 rounded-md text-xs transition-colors cursor-pointer flex items-center gap-1.5 ${
+                  viewMode === 'cards'
+                    ? 'bg-[#161D29] text-white font-semibold shadow-sm'
+                    : 'text-[#8B95A7] hover:text-[#F5F7FA]'
+                }`}
+                title="Visualização em Cards Detalhados"
+              >
+                <LayoutGrid className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline">Cards</span>
+              </button>
+            </div>
           </div>
         }
       />
@@ -1598,7 +1610,7 @@ export default function TeamsPage() {
                                 style={{ backgroundColor: t.color }}
                               />
                               <span className="font-semibold tracking-wide">
-                                {uploadedUrl ? 'FOTO HOMOLOGADA' : 'LIVERY 2026'} //{' '}
+                                {uploadedUrl ? 'FOTO HOMOLOGADA' : `LIVERY ${seasonYear}`} //{' '}
                                 {t.name.toUpperCase()}
                               </span>
                             </div>
@@ -2195,7 +2207,7 @@ export default function TeamsPage() {
                             style={{ backgroundColor: selectedTeam.color }}
                           />
                           <span className="font-semibold tracking-wide">
-                            {uploadedUrl ? 'FOTO HOMOLOGADA' : 'LIVERY 2026'} //{' '}
+                            {uploadedUrl ? 'FOTO HOMOLOGADA' : `LIVERY ${seasonYear}`} //{' '}
                             {selectedTeam.name.toUpperCase()}
                           </span>
                         </div>
@@ -2257,7 +2269,7 @@ export default function TeamsPage() {
               {/* Quadro de Métricas em Camada 2 (#161D29) */}
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
                 <div className="p-3 rounded-xl bg-[#161D29] border border-[#1F2733] space-y-1">
-                  <div className="eyebrow text-[10px]">Posição 2026</div>
+                  <div className="eyebrow text-[10px]">Posição {seasonYear}</div>
                   <div className="font-num text-lg font-bold text-[#F5F7FA]">
                     {selectedTeam.position > 0 ? `P${selectedTeam.position}` : '—'}
                   </div>

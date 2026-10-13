@@ -448,17 +448,28 @@ export default function PaddockPage() {
   return (
     <div className="space-y-6 pb-16 antialiased text-[#0F172A] select-none">
       {/* 1. CABEÇALHO OFICIAL */}
-      <div className="border-b border-[#E2E8F0] pb-4">
-        <h1 className="text-2xl sm:text-3xl font-black uppercase tracking-tight text-[#0F172A] flex items-center gap-2">
-          <span>EQUIPES</span>
-          <span className="text-xs font-mono font-bold px-2 py-0.5 rounded bg-neutral-100 text-[#475569] border border-neutral-200">
-            UNIVERSO F1 {seasonYear}
+      <div className="border-b border-[#E2E8F0] pb-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+        <div>
+          <h1 className="text-2xl sm:text-3xl font-black uppercase tracking-tight text-[#0F172A] flex items-center gap-2 flex-wrap">
+            <span>UNIVERSO F1</span>
+            <span className="text-xs font-mono font-bold px-2 py-0.5 rounded bg-neutral-100 text-[#475569] border border-neutral-200">
+              TEMPORADA {seasonYear}
+            </span>
+          </h1>
+          <p className="text-xs sm:text-sm text-[#475569] mt-1">
+            Conheça as equipes do universo APEX GP, compare suas características e acompanhe sua
+            participação na temporada.
+          </p>
+        </div>
+        <div className="flex items-center gap-2 shrink-0">
+          <span
+            data-testid="paddock-round-badge"
+            className="text-xs font-mono font-bold px-3 py-1.5 rounded-lg bg-white border border-[#E2E8F0] text-[#0F172A] shadow-xs flex items-center gap-1.5"
+          >
+            <span className="w-2 h-2 rounded-full bg-[#E10600]" />
+            Temporada {seasonYear} — Rodada {currentRound}/{totalRounds}
           </span>
-        </h1>
-        <p className="text-xs sm:text-sm text-[#475569] mt-1">
-          Conheça as equipes do universo APEX GP, compare suas características e acompanhe sua
-          participação na temporada.
-        </p>
+        </div>
       </div>
 
       {/* 2. FILTROS E BUSCA */}
