@@ -1347,12 +1347,14 @@ export class CanonicalChampionshipService {
     })
 
     // 3. Ordenar construtores com critério canônico regulamentar (Countback)
-    // Construtores usa SOMENTE as 12 equipes da temporada
+    // Construtores usa SOMENTE as equipes oficiais válidas da temporada (excluindo resíduos fantasmas)
     const allowedOfficialKeys = new Set(OFFICIAL_GRID_TEAMS.map((t) => t.key))
-    const filteredConstructors = Array.from(constructorMap.values()).filter((c) =>
-      allowedOfficialKeys.has(c.teamId),
-    )
-
+    const filteredConstructors = Array.from(constructorMap.values()).filter((c) => {
+      if (!c.teamId || c.teamId === 'toyota' || c.teamName?.toLowerCase().includes('toyota')) {
+        return false
+      }
+      return allowedOfficialKeys.has(c.teamId) || allowedOfficialKeys.has(c.teamId.toLowerCase())
+    })
     const sortedConstructorsRaw = filteredConstructors.sort((a, b) => {
       return compareCountback(a.points, a.finishCounts, b.points, b.finishCounts, () =>
         a.teamName.localeCompare(b.teamName),

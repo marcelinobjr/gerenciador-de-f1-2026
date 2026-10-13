@@ -113,110 +113,55 @@ export class TeamReplacementService {
   public getEligibleReplacementTeams(currentGridKeys: string[]): EligibleReplacementCandidate[] {
     const registeredSet = new Set(currentGridKeys.map((k) => k.toLowerCase().trim()))
 
-    const fromDb = ALL_GRID_TEAMS_DATABASE.filter(
-      (candidate) => !registeredSet.has(candidate.key.toLowerCase().trim()),
-    ).map((t) => ({
-      key: t.key,
-      name: t.name,
-      shortName: t.shortName,
-      country: t.country,
-      color: t.color,
-      engine: t.engine,
-      strength: t.strength,
-      budget: t.budget,
-      historySummary: t.historySummary,
-      currentSituation: t.currentSituation,
-    }))
-
-    // Candidatos aspirantes solicitados especificamente pelo regulamento de encerramento do usuário:
-    // Toyota, Porsche, Prema, ART, DAMS, Hitech
-    const proceduralCandidates: EligibleReplacementCandidate[] = [
-      {
-        key: 'toyota_gazoo',
-        name: 'Toyota Gazoo Racing',
-        shortName: 'Toyota',
-        country: 'Japão',
-        color: '#E60012',
-        engine: 'Toyota Hybrid V6',
-        strength: 78,
-        budget: 140000000,
-        historySummary: 'Retorno oficial da montadora japonesa ao grid com sede em Colônia.',
-        currentSituation: 'Parceria técnica e infraestrutura de ponta desenvolvida no WEC.',
-      },
-      {
-        key: 'porsche_f1',
-        name: 'Porsche Motorsport F1',
-        shortName: 'Porsche',
-        country: 'Alemanha',
-        color: '#D5001C',
-        engine: 'Porsche TAG Turbo',
-        strength: 78,
-        budget: 140000000,
-        historySummary: 'Gigante de Stuttgart entrando com estrutura própria de fábrica.',
-        currentSituation: 'Aspirante oficial com projeto de chassi e motor próprio.',
-      },
-      {
-        key: 'prema_racing',
-        name: 'Prema Racing F1',
-        shortName: 'Prema',
-        country: 'Itália',
-        color: '#CE1126',
-        engine: 'Ferrari Customer',
-        strength: 70,
-        budget: 110000000,
-        historySummary: 'A mais vitoriosa equipe de categorias de base saltando para a F1.',
-        currentSituation: 'Financiada por investidores suíços e com academia integrada.',
-      },
-      {
-        key: 'art_grand_prix',
-        name: 'ART Grand Prix',
-        shortName: 'ART',
-        country: 'França',
-        color: '#002654',
-        engine: 'Mercedes Customer',
-        strength: 69,
-        budget: 105000000,
-        historySummary:
-          'Potência francesa das categorias de formação liderada por Frédéric Vasseur legacy.',
-        currentSituation: 'Consórcio de tecnologia com apoio governamental e motor cliente.',
-      },
-      {
-        key: 'dams_lucas_oil',
-        name: 'DAMS Lucas Oil F1',
-        shortName: 'DAMS',
-        country: 'França',
-        color: '#003DA5',
-        engine: 'Ford Customer',
-        strength: 67,
-        budget: 98000000,
-        historySummary: 'Tradicional equipe europeia financiada por grupo norte-americano.',
-        currentSituation: 'Entrada independente com foco em eficiência de custos e jovens pilotos.',
-      },
-      {
-        key: 'hitech_pulse_eight',
-        name: 'Hitech Grand Prix',
-        shortName: 'Hitech',
-        country: 'Reino Unido',
-        color: '#C0C0C0',
-        engine: 'Honda Customer',
-        strength: 68,
-        budget: 102000000,
-        historySummary: 'Inscrição britânica com túnel de vento em Silverstone.',
-        currentSituation: 'Aprovada tecnicamente pela FIA em análise prévia de solvência.',
-      },
+    // Universo real de 15 equipes "fora do campeonato" conforme especificação FIX-END-01A:
+    // Alfa Romeo, Benetton, BYD, Copersucar Fittipaldi, Fittipaldi, Honda HRC, Jordan,
+    // Lamborghini, Porsche, Renault, Sauber, AlphaTauri, Team Lotus Classic, Team Penske, Toleman
+    const ALLOWED_UNIVERSE_KEYS = [
+      'alfaromeo',
+      'benetton',
+      'byd',
+      'copersucar',
+      'fittipaldi',
+      'honda',
+      'jordan',
+      'lamborghini',
+      'porsche',
+      'renault',
+      'sauber',
+      'alphatauri',
+      'lotus',
+      'penske',
+      'toleman',
     ]
 
-    const candidatesMap = new Map<string, EligibleReplacementCandidate>()
-    for (const c of fromDb) {
-      candidatesMap.set(c.key.toLowerCase(), c)
-    }
-    for (const p of proceduralCandidates) {
-      if (!registeredSet.has(p.key.toLowerCase()) && !candidatesMap.has(p.key.toLowerCase())) {
-        candidatesMap.set(p.key.toLowerCase(), p)
-      }
-    }
+    const universeCandidates = ALL_GRID_TEAMS_DATABASE.filter((candidate) => {
+      const keyNorm = candidate.key.toLowerCase().trim()
+      const nameNorm = candidate.name.toLowerCase().trim()
+      // Deve pertencer ao universo das 15 equipes e não estar registrada no grid
+      const isAllowedUniverse = ALLOWED_UNIVERSE_KEYS.includes(keyNorm)
+      return isAllowedUniverse && !registeredSet.has(keyNorm) && !registeredSet.has(nameNorm)
+    }).map((t) => {
+      // Ajustar nomes para exibição fiel ao universo do jogo
+      let displayName = t.name
+      if (t.key === 'honda') displayName = 'Honda HRC'
+      if (t.key === 'penske') displayName = 'Team Penske'
+      if (t.key === 'lotus') displayName = 'Team Lotus Classic'
 
-    return Array.from(candidatesMap.values())
+      return {
+        key: t.key,
+        name: displayName,
+        shortName: t.shortName,
+        country: t.country,
+        color: t.color,
+        engine: t.engine,
+        strength: t.strength,
+        budget: t.budget,
+        historySummary: t.historySummary,
+        currentSituation: t.currentSituation,
+      }
+    })
+
+    return universeCandidates
   }
 
   /**

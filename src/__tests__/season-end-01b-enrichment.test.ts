@@ -51,15 +51,15 @@ describe('SEASON-END-01B — Enriquecimento do Encerramento de Temporada', () =>
     const candidates = teamReplacementService.getEligibleReplacementTeams(currentGridKeys)
 
     expect(candidates.length).toBeGreaterThan(0)
-    // Verifica presença de novas entrantes plausíveis (ex: Porsche, Toyota, Prema)
+    // Verifica presença de novas entrantes do universo fora do campeonato (ex: porsche, honda, alfaromeo)
     const keys = candidates.map((c) => c.key.toLowerCase())
     expect(
       keys.some(
         (k) =>
           k.includes('porsche') ||
-          k.includes('toyota') ||
-          k.includes('prema') ||
-          k.includes('andretti'),
+          k.includes('honda') ||
+          k.includes('alfaromeo') ||
+          k.includes('benetton'),
       ),
     ).toBe(true)
 

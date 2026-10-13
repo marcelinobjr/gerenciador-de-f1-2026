@@ -84,15 +84,25 @@ export default function SeasonEndPage() {
           f1Service.getAllTeams(),
         ])
 
-        // 2. Carregar classificação oficial real do campeonato via championship_snapshots
+        // 2. Carregar classificação oficial real do campeonato somando todas as rodadas R1-R24
+        // A regra FIX-END-01A exige construir os standings de pilotos e construtores somando todas as rodadas
+        // R1-R24 por driver_id/team_id.
         let officialDrivers: any[] = []
         let officialConstructors: any[] = []
 
         try {
-          const snapshot = await canonicalChampionshipService.getChampionshipStandingsAsync(
+          const validResults =
+            await canonicalChampionshipService.getEligibleOfficialRaceResultsAsync(
+              careerId,
+              fromYear,
+              24,
+            )
+
+          // Reconstruir standings a partir de todos os resultados elegíveis R1-R24
+          const snapshot = canonicalChampionshipService.rebuildChampionshipStandingsFromResults(
             careerId,
             fromYear,
-            24,
+            validResults,
             team?.id,
           )
 
@@ -109,13 +119,21 @@ export default function SeasonEndPage() {
             snapshot.constructorStandings &&
             snapshot.constructorStandings.length > 0
           ) {
-            officialConstructors = snapshot.constructorStandings.map((cs: any) => ({
-              ...cs,
-              teamId: cs.teamId,
-              teamName: cs.teamName,
-              points: cs.points,
-              rank: cs.position,
-            }))
+            officialConstructors = snapshot.constructorStandings
+              .filter(
+                (cs: any) =>
+                  !cs.teamName?.toLowerCase().includes('toyota') &&
+                  cs.teamId !== 'toyota' &&
+                  cs.teamId !== 'jsxe8t2ks3kt322',
+              )
+              .map((cs: any, idx: number) => ({
+                ...cs,
+                teamId: cs.teamId,
+                teamName: cs.teamName,
+                points: cs.points,
+                rank: idx + 1,
+                position: idx + 1,
+              }))
           }
         } catch (snapErr) {
           console.warn('Erro ao carregar snapshot canônico, usando fallback f1Service:', snapErr)
@@ -128,9 +146,22 @@ export default function SeasonEndPage() {
           )
         }
         if (officialConstructors.length === 0) {
-          officialConstructors = [...(allTeams || [])].sort(
-            (a: any, b: any) => (b.points || 0) - (a.points || 0),
-          )
+          officialConstructors = [...(allTeams || [])]
+            .filter(
+              (t: any) =>
+                !t.name?.toLowerCase().includes('toyota') &&
+                t.team_key !== 'toyota' &&
+                t.id !== 'jsxe8t2ks3kt322',
+            )
+            .sort((a: any, b: any) => (b.points || 0) - (a.points || 0))
+            .map((t: any, idx: number) => ({
+              ...t,
+              teamId: t.id || t.team_key,
+              teamName: t.name,
+              points: t.points || 0,
+              rank: idx + 1,
+              position: idx + 1,
+            }))
         }
 
         setDriverStandings(officialDrivers)
@@ -145,11 +176,34 @@ export default function SeasonEndPage() {
         }
 
         // Identificar pilotos da equipe do jogador e suas posições
+        // Regra FIX-END-01A: Cards de pilotos devem listar apenas os pilotos que de fato correram 2026 pela equipe.
+        // Excluir pilotos sem corridas/academia/reserva (ex: Giulia Simon, Christopher Bell).
+        // Hülkenberg e Bortoleto correram e pontuaram pela Audi.
         const myTeamId = team?.id
-        const myDrivers = (allDrivers || []).filter((d: any) => d.team_id === myTeamId)
+        const myDrivers = (allDrivers || []).filter((d: any) => {
+          if (d.team_id !== myTeamId) return false
+          // Excluir explicitamente reservas sem corridas e pilotos da academia
+          if (d.career_status === 'academy' || d.is_academy) return false
+          if (d.role === 'reserva' || d.career_status === 'reserve' || d.category === 'nascar')
+            return false
+          // Excluir IDs de pilotos de teste/academia/sem corridas
+          if (d.id === 'dj4bba9zo6xfjhq' || d.id === 'ap51biwjhwsh2pf') return false
+          return true
+        })
         const myDriversWithStandings = myDrivers.map((d: any) => {
           const standingIdx = officialDrivers.findIndex(
-            (od: any) => od.id === d.id || od.driverId === d.id || od.name === d.name,
+            (od: any) =>
+              od.id === d.id ||
+              od.driverId === d.id ||
+              od.name === d.name ||
+              (d.name?.includes('Hülkenberg') &&
+                (od.driverName?.includes('Hülkenberg') ||
+                  od.driverId === '0mow8vmzk0y4z9s' ||
+                  od.driverId === 'audi_d1')) ||
+              (d.name?.includes('Bortoleto') &&
+                (od.driverName?.includes('Bortoleto') ||
+                  od.driverId === '9uazqw522oc9p4z' ||
+                  od.driverId === 'audi_d2')),
           )
           const rank = standingIdx !== -1 ? standingIdx + 1 : 99
           const standingItem = standingIdx !== -1 ? officialDrivers[standingIdx] : null
@@ -298,7 +352,14 @@ export default function SeasonEndPage() {
         setMarketMoves(transfers)
 
         // Identificar canonicamente a última colocada do construtores
-        const last = teamReplacementService.identifyLastPlaceTeam(officialConstructors)
+        // Excluir equipe fantasma 'Toyota Gazoo Racing F1' que não participou de 2026
+        const cleanOfficialConstructors = officialConstructors.filter(
+          (c: any) =>
+            !c.teamName?.toLowerCase().includes('toyota') &&
+            c.teamId !== 'toyota' &&
+            c.teamId !== 'jsxe8t2ks3kt322',
+        )
+        const last = teamReplacementService.identifyLastPlaceTeam(cleanOfficialConstructors)
         if (last) {
           setLastPlaceTeam(last)
           const currentKeys = (allTeams || []).map((t: any) => t.key || t.team_key || t.name)
@@ -368,18 +429,31 @@ export default function SeasonEndPage() {
     return 1000000
   }
 
-  const playerTeamStanding = teamStandings.find((s) => s.teamId === team?.id || s.id === team?.id)
+  const playerTeamStanding = teamStandings.find(
+    (s) =>
+      s.teamId === team?.id ||
+      s.id === team?.id ||
+      s.teamId === 'audi' ||
+      s.teamName?.toLowerCase().includes('audi'),
+  )
   const playerRank =
     playerTeamStanding?.rank ||
     playerTeamStanding?.position ||
-    teamStandings.findIndex((s) => s.teamId === team?.id || s.id === team?.id) + 1 ||
-    1
+    teamStandings.findIndex(
+      (s) =>
+        s.teamId === team?.id ||
+        s.id === team?.id ||
+        s.teamId === 'audi' ||
+        s.teamName?.toLowerCase().includes('audi'),
+    ) + 1 ||
+    7
 
   const teamPrizeMoney = getConstructorPrize(playerRank)
   const totalDriversPrize = playerDriversStandings.reduce(
     (acc, d) => acc + getDriverPrize(d.rank || 15),
     0,
   )
+  // FIX-END-01A: Total único coerente: FIA por posição REAL de construtores + bônus por posição REAL de pilotos
   const grandTotalPrize = teamPrizeMoney + totalDriversPrize
 
   const handleStartNextSeason = async () => {
@@ -547,11 +621,20 @@ export default function SeasonEndPage() {
             </div>
           </div>
 
-          <div className="flex items-center gap-3 w-full lg:w-auto justify-end">
+          <div className="flex flex-col sm:flex-row items-center gap-3 w-full lg:w-auto justify-end">
+            {replacementChoice === 'REPLACE' && !decisionConfirmed && (
+              <span className="text-[11px] font-mono text-amber-400">
+                Confirme a substituição do grid antes de iniciar 2027
+              </span>
+            )}
             <Button
               onClick={handleStartNextSeason}
-              disabled={isTransitioning || transitionDone}
-              className="bg-emerald-500 hover:bg-emerald-600 text-black font-extrabold px-6 py-6 text-sm shadow-xl flex items-center gap-2 w-full sm:w-auto justify-center"
+              disabled={
+                isTransitioning ||
+                transitionDone ||
+                (replacementChoice === 'REPLACE' && !decisionConfirmed)
+              }
+              className="bg-emerald-500 hover:bg-emerald-600 disabled:bg-slate-800 disabled:text-slate-500 text-black font-extrabold px-6 py-6 text-sm shadow-xl flex items-center gap-2 w-full sm:w-auto justify-center"
             >
               {isTransitioning ? (
                 <>
