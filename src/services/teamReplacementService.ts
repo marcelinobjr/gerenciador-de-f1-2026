@@ -111,77 +111,80 @@ export class TeamReplacementService {
    * Filtra todas as que já estão no grid atual.
    */
   public getEligibleReplacementTeams(currentGridKeys: string[]): EligibleReplacementCandidate[] {
-    const registeredSet = new Set<string>()
-    for (const rawKey of currentGridKeys || []) {
-      if (!rawKey) continue
-      const str = String(rawKey).toLowerCase().trim()
-      registeredSet.add(str)
-      // Normalizar removendo caracteres especiais e espaços
-      registeredSet.add(str.replace(/[^a-z0-9]/g, ''))
-      // Remover prefixo ai_ se houver
-      registeredSet.add(str.replace(/^ai_/, ''))
-    }
-
-    // Universo real de 15 equipes "fora do campeonato" conforme especificação FIX-ELIGIBLE-TEAMS-01A:
-    // Alfa Romeo F1 Team, Benetton Formula, BYD Formula E-Tech, Copersucar Fittipaldi, Fittipaldi Racing Team,
-    // Honda HRC F1 Team, Jordan Grand Prix, Lamborghini Squadra Corse, Porsche Motorsport, Renault F1 Team,
-    // Sauber Motorsport, Scuderia AlphaTauri, Team Lotus Classic, Team Penske F1, Toleman Motorsport
-    const ALLOWED_UNIVERSE_KEYS = [
-      'alfaromeo',
-      'benetton',
-      'byd',
-      'copersucar',
-      'fittipaldi',
-      'honda',
-      'jordan',
-      'lamborghini',
-      'porsche',
-      'renault',
-      'sauber',
-      'alphatauri',
-      'lotus',
-      'penske',
-      'toleman',
-    ]
-
-    const universeCandidates = ALL_GRID_TEAMS_DATABASE.filter((candidate) => {
-      const keyNorm = candidate.key.toLowerCase().trim()
-      const keyClean = keyNorm.replace(/[^a-z0-9]/g, '')
-      const nameNorm = candidate.name.toLowerCase().trim()
-      const nameClean = nameNorm.replace(/[^a-z0-9]/g, '')
-      const shortClean = candidate.shortName.toLowerCase().replace(/[^a-z0-9]/g, '')
-
-      // Deve pertencer ao universo das 15 equipes
-      const isAllowedUniverse =
-        ALLOWED_UNIVERSE_KEYS.includes(keyNorm) || ALLOWED_UNIVERSE_KEYS.includes(keyClean)
-      if (!isAllowedUniverse) return false
-
-      // Não pode estar registrada no grid participante atual
-      const isInGrid =
-        registeredSet.has(keyNorm) ||
-        registeredSet.has(keyClean) ||
-        registeredSet.has(nameNorm) ||
-        registeredSet.has(nameClean) ||
-        registeredSet.has(shortClean)
-
-      return !isInGrid
-    }).map((t) => {
-      return {
-        key: t.key,
-        name: t.name,
-        shortName: t.shortName,
-        country: t.country,
-        color: t.color,
-        engine: t.engine,
-        strength: t.strength,
-        budget: t.budget,
-        historySummary: t.historySummary,
-        currentSituation: t.currentSituation,
-      }
-    })
-
-    return universeCandidates
+  const registeredSet = new Set<string>()
+  for (const rawKey of currentGridKeys || []) {
+    if (!rawKey) continue
+    const str = String(rawKey).toLowerCase().trim()
+    registeredSet.add(str)
+    // Normalizar removendo caracteres especiais e espaços
+    registeredSet.add(str.replace(/[^a-z0-9]/g, ''))
+    // Remover prefixo ai_ se houver
+    registeredSet.add(str.replace(/^ai_/, ''))
   }
+
+  // Universo real de 15 equipes "fora do campeonato" conforme especificação FIX-ELIGIBLE-TEAMS-01A:
+  // Alfa Romeo F1 Team, Benetton Formula, BYD Formula E-Tech, Copersucar Fittipaldi, Fittipaldi Racing Team,
+  // Honda HRC F1 Team, Jordan Grand Prix, Lamborghini Squadra Corse, Porsche Motorsport, Renault F1 Team,
+  // Sauber Motorsport, Scuderia AlphaTauri, Team Lotus Classic, Team Penske F1, Toleman Motorsport
+  const ALLOWED_UNIVERSE_KEYS = [
+    'alfaromeo',
+    'benetton',
+    'byd',
+    'copersucar',
+    'fittipaldi',
+    'honda',
+    'jordan',
+    'lamborghini',
+    'porsche',
+    'renault',
+    'sauber',
+    'alphatauri',
+    'lotus',
+    'penske',
+    'toleman',
+  ]
+
+  const universeCandidates = ALL_GRID_TEAMS_DATABASE.filter((candidate) => {
+    const keyNorm = candidate.key.toLowerCase().trim()
+    const keyClean = keyNorm.replace(/[^a-z0-9]/g, '')
+    const nameNorm = candidate.name.toLowerCase().trim()
+    const nameClean = nameNorm.replace(/[^a-z0-9]/g, '')
+    const shortClean = (candidate.shortName || '').toLowerCase().replace(/[^a-z0-9]/g, '')
+
+    // Deve pertencer ao universo das 15 equipes fora do campeonato
+    const isAllowedUniverse =
+      ALLOWED_UNIVERSE_KEYS.includes(keyNorm) ||
+      ALLOWED_UNIVERSE_KEYS.includes(keyClean) ||
+      ALLOWED_UNIVERSE_KEYS.some((uKey) => nameClean.includes(uKey) || keyClean.includes(uKey))
+    if (!isAllowedUniverse) return false
+
+    // Não pode estar registrada no grid participante atual
+    // Atenção: a comparação deve ser estrita para não colidir acidentalmente (ex: 'fittipaldi' com outra equipe)
+    const isInGrid =
+      registeredSet.has(keyNorm) ||
+      registeredSet.has(keyClean) ||
+      registeredSet.has(nameNorm) ||
+      registeredSet.has(nameClean) ||
+      (shortClean && registeredSet.has(shortClean))
+
+    return !isInGrid
+  }).map((t) => {
+    return {
+      key: t.key,
+      name: t.name,
+      shortName: t.shortName,
+      country: t.country,
+      color: t.color,
+      engine: t.engine,
+      strength: t.strength,
+      budget: t.budget,
+      historySummary: t.historySummary,
+      currentSituation: t.currentSituation,
+    }
+  })
+
+  return universeCandidates
+}
 
   /**
    * Carrega decisão de substituição persistida se já existir
