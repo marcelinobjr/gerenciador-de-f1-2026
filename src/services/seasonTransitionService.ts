@@ -27,6 +27,7 @@ import { loadActiveEconomicConfig } from '@/lib/finances/loader'
 import type { CanonicalDriverContract } from '@/types/canonical-driver-market'
 import type { StaffContract, TeamTechnicalOrganization } from '@/types/canonical-staff'
 import { f1Service } from '@/services/f1Service'
+
 import { financialLedgerService } from '@/services/financialLedgerService'
 import { technicalOrganizationService } from '@/services/technicalOrganizationService'
 import { driverDevelopmentService } from '@/services/driverDevelopmentService'
@@ -221,6 +222,64 @@ export class SeasonTransitionService {
       // sem transição
     }
     return { isOrphan: false, transitionRecord: null }
+  }
+
+  /**
+   * BUG-APPLY-JOURNAL-STALL-01A: Retomada idempotente de transição órfã a partir do ponto exato onde parou
+   * Registra last_error e tenta concluir os passos restantes.
+   */
+  public async resumeOrphanTransition(params: {
+    transitionRecordId: string
+    teamId: string
+    fromSeasonYear: number
+    toSeasonYear: number
+    callbacks?: TransitionCallbacks
+  }): Promise<{
+    success: boolean
+    historyRecord?: CanonicalSeasonHistory
+    nextSeason?: SeasonModel
+    auditReport?: SeasonTransitionAuditReport
+    error?: string
+  }> {
+    const { transitionRecordId, teamId, fromSeasonYear, toSeasonYear, callbacks } = params
+    try {
+      const rec = await pb.collection('season_transitions').getOne(transitionRecordId)
+      if (!rec || rec.status === 'COMPLETE') {
+        // Já está completa, reutilizar execução canônica
+        return await this.executeSeasonTransition({
+          teamId,
+          fromSeasonYear,
+          toSeasonYear,
+          callbacks,
+        })
+      }
+
+      // Atualizar heartbeat e retomar com last_error limpo
+      await pb.collection('season_transitions').update(transitionRecordId, {
+        status: 'RUNNING',
+        error_message: '',
+      })
+
+      return await this.executeSeasonTransition({
+        teamId,
+        fromSeasonYear,
+        toSeasonYear,
+        callbacks,
+      })
+    } catch (err: any) {
+      try {
+        await pb.collection('season_transitions').update(transitionRecordId, {
+          status: 'FAILED',
+          error_message: err?.message || String(err),
+        })
+      } catch {
+        // ignore
+      }
+      return {
+        success: false,
+        error: err?.message || String(err),
+      }
+    }
   }
 
   public async validatePreConditions(params: {
