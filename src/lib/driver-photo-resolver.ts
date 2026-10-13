@@ -97,7 +97,70 @@ export function resolveDriverPhoto(options: DriverPhotoResolveOptions): Resolved
     }
   }
 
-  // 2. Piloto Procedural / Newgen com perfil gerado gravado (ORDEM ESTRITA - REGRA A: PERSISTIDO PRIMEIRO)
+  // 1.5 Checagem Canônica Prioritária para Pilotos Reais
+  // Pilotos reais (originType === 'real', ou com assetId DRV_XXXX, ou encontrados no catálogo canônico sem serem procedurais)
+  // NUNCA devem ser interceptados por perfis procedurais 'Piloto_*' espúrios.
+  const isExplicitReal = options.originType === 'real'
+  const explicitCanonicalAsset =
+    portraitAssetId && portraitAssetId.startsWith('DRV_')
+      ? portraitAssetId
+      : visualIdentity?.portraitAssetId && visualIdentity.portraitAssetId.startsWith('DRV_')
+        ? visualIdentity.portraitAssetId
+        : null
+
+  if (explicitCanonicalAsset) {
+    const canonicalPath = `/pilotos/${explicitCanonicalAsset}.jpg`
+    candidateUrls.push(canonicalPath)
+    return {
+      url: canonicalPath,
+      candidateUrls,
+      fallbackInitials,
+      teamColor: teamColor || '#E10600',
+      sourceType: 'canonical_real',
+      assetId: explicitCanonicalAsset,
+      driverId: driverId || undefined,
+    }
+  }
+
+  // Se for explicitamente piloto real, resolver canônico ANTES de qualquer fallback procedural
+  if (isExplicitReal) {
+    const directCanonicalPath = resolveCanonicalDriverImagePath(driverId, name)
+    if (directCanonicalPath && !directCanonicalPath.includes('pilotos-gerados')) {
+      candidateUrls.push(directCanonicalPath)
+      return {
+        url: directCanonicalPath,
+        candidateUrls,
+        fallbackInitials,
+        teamColor: teamColor || '#E10600',
+        sourceType: 'canonical_real',
+        assetId: directCanonicalPath.split('/').pop()?.replace('.jpg', ''),
+        driverId: driverId || undefined,
+      }
+    }
+
+    const resolvedMaster =
+      (driverId ? getCanonicalDriverMaster(driverId) : null) ||
+      findCanonicalDriverMaster(driverId, name)
+
+    const directAssetId = driverId ? getCanonicalAssetId(driverId) : null
+    const effectiveAssetId = resolvedMaster?.assetId || directAssetId
+
+    if (effectiveAssetId && effectiveAssetId.startsWith('DRV_')) {
+      const canonicalPath = `/pilotos/${effectiveAssetId}.jpg`
+      candidateUrls.push(canonicalPath)
+      return {
+        url: canonicalPath,
+        candidateUrls,
+        fallbackInitials,
+        teamColor: teamColor || '#E10600',
+        sourceType: 'canonical_real',
+        assetId: effectiveAssetId,
+        driverId: resolvedMaster?.driverId || driverId || undefined,
+      }
+    }
+  }
+
+  // 2. Piloto Procedural / Newgen com perfil gerado gravado (ORDEM ESTRITA - REGRA A: PERSISTIDO PRIMEIRO PARA PROCEDURAIS)
   // Resolve direto /pilotos-gerados/{id}.jpg sem busca por nome
   const effectiveGenProfileId =
     generatedPortraitProfileId ||
@@ -112,7 +175,8 @@ export function resolveDriverPhoto(options: DriverPhotoResolveOptions): Resolved
       ? visualIdentity.portraitAssetId
       : null)
 
-  if (effectiveGenProfileId) {
+  // Apenas aceita se NÃO for piloto explicitamente real com catálogo canônico
+  if (effectiveGenProfileId && !isExplicitReal) {
     const cleanProfileId = effectiveGenProfileId.replace(/\.jpg$/i, '')
     // Tenta obter do catálogo de perfis gerados ou resolve direto o path
     const genProfile = getGeneratedDriverPortraitProfile(cleanProfileId)
@@ -134,9 +198,10 @@ export function resolveDriverPhoto(options: DriverPhotoResolveOptions): Resolved
   const isProcedural = Boolean(
     options.originType === 'procedural' ||
     (driverId && (driverId.startsWith('drv_proc_') || driverId.startsWith('proc_'))) ||
-    Boolean(generatedPortraitProfileId) ||
-    Boolean(visualIdentity?.generatedPortraitProfileId) ||
+    (!isExplicitReal && Boolean(generatedPortraitProfileId)) ||
+    (!isExplicitReal && Boolean(visualIdentity?.generatedPortraitProfileId)) ||
     Boolean(
+      !isExplicitReal &&
       visualIdentity &&
       !portraitAssetId?.startsWith('DRV_') &&
       !driverId?.startsWith('mbj-') &&

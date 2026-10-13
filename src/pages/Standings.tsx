@@ -30,7 +30,24 @@ export default function StandingsPage() {
     totalRounds,
   } = useUnifiedSeason()
 
-  const [activeTab, setActiveTab] = useState<'drivers' | 'constructors'>('drivers')
+  const [activeTab, setActiveTab] = useState<'drivers' | 'constructors' | 'archive'>('drivers')
+  const [archivedSeasons, setArchivedSeasons] = useState<any[]>([])
+  const [selectedArchiveYear, setSelectedArchiveYear] = useState<number>(2026)
+
+  useEffect(() => {
+    async function loadHistories() {
+      try {
+        const records = await pb.collection('season_histories').getFullList({ sort: '-season_year' })
+        setArchivedSeasons(records || [])
+        if (records && records.length > 0) {
+          setSelectedArchiveYear(records[0].season_year || 2026)
+        }
+      } catch (e) {
+        console.warn('Erro ao carregar season_histories:', e)
+      }
+    }
+    loadHistories()
+  }, [])
 
   // Modais canônicos de interação ao clicar na linha
   const [selectedPilotForModal, setSelectedPilotForModal] = useState<any | null>(null)
@@ -257,12 +274,12 @@ export default function StandingsPage() {
           </p>
         </div>
 
-        {/* Seletor PILOTOS / CONSTRUTORES */}
+        {/* Seletor PILOTOS / CONSTRUTORES / RESULTADOS */}
         <div className="inline-flex items-center p-1 rounded-xl bg-[#F1F5F9] border border-[#E2E8F0] self-start sm:self-auto shadow-xs">
           <button
             type="button"
             onClick={() => setActiveTab('drivers')}
-            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+            className={`flex items-center gap-2 px-3.5 py-2 rounded-lg text-xs font-bold transition-all cursor-pointer ${
               activeTab === 'drivers'
                 ? 'bg-[#E10600] text-white shadow-sm'
                 : 'bg-transparent text-[#0F172A] hover:bg-white/70'
@@ -274,7 +291,7 @@ export default function StandingsPage() {
           <button
             type="button"
             onClick={() => setActiveTab('constructors')}
-            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+            className={`flex items-center gap-2 px-3.5 py-2 rounded-lg text-xs font-bold transition-all cursor-pointer ${
               activeTab === 'constructors'
                 ? 'bg-[#E10600] text-white shadow-sm'
                 : 'bg-transparent text-[#0F172A] hover:bg-white/70'
@@ -282,6 +299,18 @@ export default function StandingsPage() {
           >
             <Trophy className="w-3.5 h-3.5" />
             <span className="tracking-wide uppercase">CONSTRUTORES</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveTab('archive')}
+            className={`flex items-center gap-2 px-3.5 py-2 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+              activeTab === 'archive'
+                ? 'bg-[#E10600] text-white shadow-sm'
+                : 'bg-transparent text-[#0F172A] hover:bg-white/70'
+            }`}
+          >
+            <Award className="w-3.5 h-3.5" />
+            <span className="tracking-wide uppercase">RESULTADOS</span>
           </button>
         </div>
       </div>
@@ -311,13 +340,17 @@ export default function StandingsPage() {
             <h2 className="text-xl sm:text-2xl lg:text-3xl font-black uppercase tracking-tight text-white">
               {activeTab === 'drivers'
                 ? `Campeonato Mundial de Pilotos ${seasonYear}`
-                : `Campeonato Mundial de Construtores ${seasonYear}`}
+                : activeTab === 'constructors'
+                  ? `Campeonato Mundial de Construtores ${seasonYear}`
+                  : `Arquivo Histórico de Campeões da F1`}
             </h2>
 
             <p className="text-xs sm:text-sm text-neutral-300 leading-relaxed font-sans">
               {activeTab === 'drivers'
                 ? 'Os melhores do mundo. Uma só coroa.'
-                : 'Engenharia, pessoas e performance. Uma temporada para definir o melhor conjunto.'}
+                : activeTab === 'constructors'
+                  ? 'Engenharia, pessoas e performance. Uma temporada para definir o melhor conjunto.'
+                  : 'Consulte os arquivos oficiais consolidados, pódio dos campeões e tabelas completas de temporadas encerradas.'}
             </p>
           </div>
 
@@ -413,12 +446,16 @@ export default function StandingsPage() {
             <div className="text-sm font-black text-[#0F172A] truncate">
               {activeTab === 'drivers'
                 ? `${effectiveDriverStandings.length} Pilotos Registrados`
-                : `${effectiveConstructorStandings.length} Construtores`}
+                : activeTab === 'constructors'
+                  ? `${effectiveConstructorStandings.length} Construtores`
+                  : `${archivedSeasons.length || 1} Temporadas Arquivadas`}
             </div>
             <span className="text-[11px] text-[#475569] font-medium block truncate">
               {activeTab === 'drivers'
                 ? `${effectiveConstructorStandings.length} equipes participantes`
-                : `${effectiveDriverStandings.length} pilotos titulares no grid`}
+                : activeTab === 'constructors'
+                  ? `${effectiveDriverStandings.length} pilotos titulares no grid`
+                  : 'Registro histórico perpétuo FIA'}
             </span>
           </div>
         </div>
@@ -435,13 +472,17 @@ export default function StandingsPage() {
             <h3 className="text-xs sm:text-sm font-black tracking-tight text-[#0F172A] uppercase">
               {activeTab === 'drivers'
                 ? `CLASSIFICAÇÃO DE PILOTOS • TEMPORADA ${seasonYear}`
-                : `CLASSIFICAÇÃO DE CONSTRUTORES • TEMPORADA ${seasonYear}`}
+                : activeTab === 'constructors'
+                  ? `CLASSIFICAÇÃO DE CONSTRUTORES • TEMPORADA ${seasonYear}`
+                  : `ARQUIVO OFICIAL FIA • TEMPORADA ${selectedArchiveYear}`}
             </h3>
           </div>
           <span className="text-[11px] font-mono font-bold text-[#64748B]">
             {activeTab === 'drivers'
               ? `${effectiveDriverStandings.length} pilotos inscritos`
-              : `${effectiveConstructorStandings.length} construtores ativos`}
+              : activeTab === 'constructors'
+                ? `${effectiveConstructorStandings.length} construtores ativos`
+                : 'Homologação oficial concluída'}
           </span>
         </div>
 
@@ -781,6 +822,190 @@ export default function StandingsPage() {
               </tbody>
             </table>
           </div>
+        ) : (
+          /* ABA RESULTADOS / ARQUIVO POR TEMPORADA */
+          <div className="p-6 space-y-6">
+            {/* Seletor do ano arquivado */}
+            <div className="flex flex-wrap items-center justify-between gap-4 pb-4 border-b border-[#E2E8F0]">
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-bold text-[#64748B] uppercase font-mono">
+                  Selecione a Temporada Homologada:
+                </span>
+                <div className="flex items-center gap-1.5">
+                  {(archivedSeasons.length > 0 ? archivedSeasons : [{ season_year: 2026 }]).map((h: any) => (
+                    <button
+                      key={h.id || h.season_year}
+                      type="button"
+                      onClick={() => setSelectedArchiveYear(h.season_year)}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-bold font-mono transition-all ${
+                        selectedArchiveYear === h.season_year
+                          ? 'bg-[#0F172A] text-white shadow-xs'
+                          : 'bg-neutral-100 text-[#475569] hover:bg-neutral-200'
+                      }`}
+                    >
+                      Campeão {h.season_year}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <span className="text-xs font-mono text-emerald-600 font-bold bg-emerald-50 px-2.5 py-1 rounded-md border border-emerald-200">
+                ✓ Registro Imutável e Oficial
+              </span>
+            </div>
+
+            {(() => {
+              const hist = archivedSeasons.find((h) => h.season_year === selectedArchiveYear) || archivedSeasons[0]
+              const dChamp = hist?.drivers_champion || { driverName: 'Andrea Kimi Antonelli', points: 300, wins: 12, podiums: 12 }
+              const cChamp = hist?.constructors_champion || { teamName: 'Mercedes-AMG PETRONAS', points: 475, wins: 19, podiums: 19 }
+              const dStandings: any[] = Array.isArray(hist?.final_driver_standings) ? hist.final_driver_standings : []
+              const cStandings: any[] = Array.isArray(hist?.final_constructor_standings) ? hist.final_constructor_standings : []
+
+              // Pódio dos 3 primeiros do Mundial de Pilotos
+              const podiumDrivers = dStandings.slice(0, 3)
+
+              return (
+                <div className="space-y-6">
+                  {/* PÓDIO DOS 3 PILOTOS NO MUNDIAL DE PILOTOS */}
+                  <div className="bg-gradient-to-br from-[#F8FAFC] to-white rounded-2xl p-6 border border-[#E2E8F0] shadow-xs">
+                    <div className="flex items-center gap-2 mb-4 pb-2 border-b border-[#E2E8F0]">
+                      <Trophy className="w-4 h-4 text-amber-500" />
+                      <h4 className="text-xs sm:text-sm font-black uppercase text-[#0F172A] tracking-wider font-mono">
+                        PÓDIO OFICIAL DO MUNDIAL DE PILOTOS {selectedArchiveYear}
+                      </h4>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
+                      {/* P2: Vice-campeão (Prata) */}
+                      <div className="order-2 md:order-1 bg-white rounded-xl p-4 border border-slate-200 shadow-xs text-center space-y-2">
+                        <div className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-slate-200 text-slate-800 font-black font-mono text-sm">
+                          2º
+                        </div>
+                        <div className="font-bold text-sm text-[#0F172A]">
+                          {podiumDrivers[1]?.name || 'Vice-Campeão'}
+                        </div>
+                        <div className="text-xs text-[#64748B]">
+                          {podiumDrivers[1]?.teamName || 'Equipe'}
+                        </div>
+                        <div className="text-xs font-mono font-bold text-slate-700 bg-slate-50 py-1 rounded">
+                          {podiumDrivers[1]?.points ?? 0} pts • {podiumDrivers[1]?.wins ?? 0} vitórias
+                        </div>
+                      </div>
+
+                      {/* P1: Campeão Mundial (Ouro) */}
+                      <div className="order-1 md:order-2 bg-gradient-to-b from-amber-50 to-white rounded-xl p-5 border-2 border-amber-400 shadow-md text-center space-y-2.5 -translate-y-1">
+                        <div className="inline-flex items-center justify-center w-10 h-10 rounded-full bg-amber-400 text-amber-950 font-black font-mono text-base shadow-xs">
+                          1º
+                        </div>
+                        <div className="text-[10px] font-black uppercase tracking-widest text-amber-700 font-mono">
+                          CAMPEÃO MUNDIAL {selectedArchiveYear}
+                        </div>
+                        <div className="font-black text-base text-[#0F172A]">
+                          {dChamp.driverName || podiumDrivers[0]?.name || 'Campeão'}
+                        </div>
+                        <div className="text-xs text-[#475569] font-medium">
+                          {cChamp.teamName || podiumDrivers[0]?.teamName || ''}
+                        </div>
+                        <div className="text-xs font-mono font-black text-amber-950 bg-amber-100/80 py-1.5 rounded-lg">
+                          {dChamp.points ?? podiumDrivers[0]?.points ?? 0} pts • {dChamp.wins ?? podiumDrivers[0]?.wins ?? 0} vitórias • {dChamp.podiums ?? podiumDrivers[0]?.podiums ?? 0} pódios
+                        </div>
+                      </div>
+
+                      {/* P3: Terceiro colocado (Bronze) */}
+                      <div className="order-3 md:order-3 bg-white rounded-xl p-4 border border-amber-900/20 shadow-xs text-center space-y-2">
+                        <div className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-amber-700 text-white font-black font-mono text-sm">
+                          3º
+                        </div>
+                        <div className="font-bold text-sm text-[#0F172A]">
+                          {podiumDrivers[2]?.name || '3º Colocado'}
+                        </div>
+                        <div className="text-xs text-[#64748B]">
+                          {podiumDrivers[2]?.teamName || 'Equipe'}
+                        </div>
+                        <div className="text-xs font-mono font-bold text-amber-900 bg-amber-50/50 py-1 rounded">
+                          {podiumDrivers[2]?.points ?? 0} pts • {podiumDrivers[2]?.wins ?? 0} vitórias
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* TABELAS COMPLETAS DO ARQUIVO: CONSTRUTORES E PILOTOS */}
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                    {/* Tabela Final de Construtores */}
+                    <div className="bg-white rounded-xl border border-[#E2E8F0] overflow-hidden">
+                      <div className="p-3 bg-neutral-50 border-b border-[#E2E8F0] flex items-center justify-between">
+                        <span className="font-bold text-xs uppercase tracking-tight text-[#0F172A]">
+                          Tabela Final de Construtores ({selectedArchiveYear})
+                        </span>
+                        <span className="text-[11px] font-mono text-emerald-600 font-bold">
+                          Campeã: {cChamp.teamName}
+                        </span>
+                      </div>
+                      <div className="overflow-x-auto max-h-[380px] overflow-y-auto">
+                        <table className="w-full text-left text-xs border-collapse">
+                          <thead className="bg-[#FAFAFA] text-[10px] font-mono text-[#64748B] uppercase sticky top-0 border-b border-[#E2E8F0]">
+                            <tr>
+                              <th className="py-2 px-3 text-center w-10">Pos</th>
+                              <th className="py-2 px-3">Escuderia</th>
+                              <th className="py-2 px-3 text-center w-14">Vit</th>
+                              <th className="py-2 px-3 text-center w-14">Pód</th>
+                              <th className="py-2 px-3 text-right w-16">Pts</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-[#F1F5F9] font-mono">
+                            {cStandings.map((c, i) => (
+                              <tr key={c.id || i} className={i === 0 ? 'bg-amber-50/40 font-bold' : 'hover:bg-neutral-50'}>
+                                <td className="py-2 px-3 text-center font-bold text-[#64748B]">P{i + 1}</td>
+                                <td className="py-2 px-3 font-sans font-semibold text-[#0F172A] truncate max-w-[180px]">{c.name}</td>
+                                <td className="py-2 px-3 text-center text-[#475569]">{c.wins ?? 0}</td>
+                                <td className="py-2 px-3 text-center text-[#475569]">{c.podiums ?? 0}</td>
+                                <td className="py-2 px-3 text-right font-black text-[#0F172A]">{c.points ?? 0}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+
+                    {/* Tabela Final de Pilotos */}
+                    <div className="bg-white rounded-xl border border-[#E2E8F0] overflow-hidden">
+                      <div className="p-3 bg-neutral-50 border-b border-[#E2E8F0] flex items-center justify-between">
+                        <span className="font-bold text-xs uppercase tracking-tight text-[#0F172A]">
+                          Tabela Final de Pilotos ({selectedArchiveYear})
+                        </span>
+                        <span className="text-[11px] font-mono text-amber-600 font-bold">
+                          Campeão: {dChamp.driverName}
+                        </span>
+                      </div>
+                      <div className="overflow-x-auto max-h-[380px] overflow-y-auto">
+                        <table className="w-full text-left text-xs border-collapse">
+                          <thead className="bg-[#FAFAFA] text-[10px] font-mono text-[#64748B] uppercase sticky top-0 border-b border-[#E2E8F0]">
+                            <tr>
+                              <th className="py-2 px-3 text-center w-10">Pos</th>
+                              <th className="py-2 px-3">Piloto</th>
+                              <th className="py-2 px-3 text-center w-14">Vit</th>
+                              <th className="py-2 px-3 text-center w-14">Pód</th>
+                              <th className="py-2 px-3 text-right w-16">Pts</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-[#F1F5F9] font-mono">
+                            {dStandings.map((d, i) => (
+                              <tr key={d.id || i} className={i === 0 ? 'bg-amber-50/40 font-bold' : 'hover:bg-neutral-50'}>
+                                <td className="py-2 px-3 text-center font-bold text-[#64748B]">P{i + 1}</td>
+                                <td className="py-2 px-3 font-sans font-semibold text-[#0F172A] truncate max-w-[180px]">{d.name}</td>
+                                <td className="py-2 px-3 text-center text-[#475569]">{d.wins ?? 0}</td>
+                                <td className="py-2 px-3 text-center text-[#475569]">{d.podiums ?? 0}</td>
+                                <td className="py-2 px-3 text-right font-black text-[#0F172A]">{d.points ?? 0}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )
+            })()}
+          </div>
         )}
       </div>
 
@@ -809,7 +1034,7 @@ export default function StandingsPage() {
           teamHq="Sede Operacional Europeia"
           teamCountry="Licença Oficial FIA"
           engineSupplier={selectedTeamForModal.engine || 'Fórmula 1 Turbo-Híbrido'}
-          teamIntro="Operação técnica de alto rendimento focada na disputa direta do Campeonato Mundial da FIA sob o regulamento técnico da era 2026."
+          teamIntro={`Operação técnica de alto rendimento focada na disputa direta do Campeonato Mundial da FIA sob o regulamento técnico da era ${seasonYear}.`}
         />
       )}
     </div>

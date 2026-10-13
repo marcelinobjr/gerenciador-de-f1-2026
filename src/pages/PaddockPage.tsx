@@ -81,6 +81,8 @@ export default function PaddockPage() {
 
     // Chaves padrão da temporada atual
     OFFICIAL_2026_GRID_KEYS.forEach((k) => keys.add(k.toLowerCase().trim()))
+    // Suporte a escuderias participantes adicionais (ex: Toyota)
+    keys.add('toyota')
 
     // Se o jogador configurou uma equipe customizada ou grid customizado
     if (playerTeam) {
@@ -165,7 +167,8 @@ export default function PaddockPage() {
         isPlayer ||
         participatingKeys.has(struct.key.toLowerCase().trim()) ||
         participatingKeys.has(struct.name.toLowerCase().trim()) ||
-        OFFICIAL_2026_GRID_KEYS.includes(struct.key)
+        OFFICIAL_2026_GRID_KEYS.includes(struct.key) ||
+        participatingKeys.has(struct.key.toLowerCase().trim())
 
       // Se participante, buscar classificação canônica da temporada
       let standingInfo: { rank: number; points: number; wins: number; podiums: number } | null =

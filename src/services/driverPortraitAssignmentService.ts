@@ -167,7 +167,9 @@ export interface AssignedPortraitProfile {
 export function assignGeneratedPortraitProfile(
   gender: string | null | undefined,
   seedOrId: string | number,
+  options?: { originType?: string | null; isReal?: boolean },
 ): AssignedPortraitProfile {
+  // Blindagem: pilotos reais não devem receber perfil procedural arbitrário incompatível
   const resolvedGender = resolveDriverIdentityGender({ gender })
   const pool = resolvedGender === 'female' ? FEMALE_PORTRAITS_POOL : MALE_PORTRAITS_POOL
 

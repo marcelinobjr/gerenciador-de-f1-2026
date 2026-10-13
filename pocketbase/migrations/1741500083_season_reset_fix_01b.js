@@ -77,7 +77,9 @@ migrate(
       if (verstappen) {
         let procData = verstappen.get('procedural_data') || {}
         if (typeof procData === 'string') {
-          try { procData = JSON.parse(procData) } catch {}
+          try {
+            procData = JSON.parse(procData)
+          } catch {}
         }
         if (!procData.visualIdentity) {
           procData.visualIdentity = {}
@@ -120,18 +122,38 @@ migrate(
 
         // Blindagem de pilotos reais masculinos contra gênero feminino
         const realMales = [
-          'Max Verstappen', 'Lewis Hamilton', 'Charles Leclerc', 'Lando Norris',
-          'Oscar Piastri', 'George Russell', 'Fernando Alonso', 'Carlos Sainz',
-          'Andrea Kimi Antonelli', 'Pierre Gasly', 'Esteban Ocon', 'Alexander Albon',
-          'Yuki Tsunoda', 'Nico Hulkenberg', 'Gabriel Bortoleto', 'Liam Lawson',
-          'Oliver Bearman', 'Jack Doohan', 'Lance Stroll', 'Valtteri Bottas',
-          'Zhou Guanyu', 'Sergio Perez', 'Daniel Ricciardo', 'Kevin Magnussen'
+          'Max Verstappen',
+          'Lewis Hamilton',
+          'Charles Leclerc',
+          'Lando Norris',
+          'Oscar Piastri',
+          'George Russell',
+          'Fernando Alonso',
+          'Carlos Sainz',
+          'Andrea Kimi Antonelli',
+          'Pierre Gasly',
+          'Esteban Ocon',
+          'Alexander Albon',
+          'Yuki Tsunoda',
+          'Nico Hulkenberg',
+          'Gabriel Bortoleto',
+          'Liam Lawson',
+          'Oliver Bearman',
+          'Jack Doohan',
+          'Lance Stroll',
+          'Valtteri Bottas',
+          'Zhou Guanyu',
+          'Sergio Perez',
+          'Daniel Ricciardo',
+          'Kevin Magnussen',
         ]
         const dName = drv.get('name')
         if (realMales.indexOf(dName) !== -1) {
           let pData = drv.get('procedural_data') || {}
           if (typeof pData === 'string') {
-            try { pData = JSON.parse(pData) } catch {}
+            try {
+              pData = JSON.parse(pData)
+            } catch {}
           }
           if (pData && pData.visualIdentity && pData.visualIdentity.gender === 'female') {
             pData.visualIdentity.gender = 'male'
@@ -161,7 +183,13 @@ migrate(
       const activeTeams = app.findRecordsByFilter('teams', 'id != ""', '', 100, 0)
       for (const tm of activeTeams) {
         if (tm.id === mercedesId) continue // Mercedes fora do grid
-        const teamDrivers = app.findRecordsByFilter('drivers', `team_id = "${tm.id}"`, '-speed', 10, 0)
+        const teamDrivers = app.findRecordsByFilter(
+          'drivers',
+          `team_id = "${tm.id}"`,
+          '-speed',
+          10,
+          0,
+        )
         let titularCount = 0
         for (const td of teamDrivers) {
           if (td.get('role') === 'titular') {
@@ -187,7 +215,13 @@ migrate(
     // 7. Reconstrução canônica do Season History 2026 acumulando todas as 24 rodadas reais
     try {
       // Buscar todos os race_results da temporada 2026 (season_id = 'z36hmcbqa75kt7k')
-      const results = app.findRecordsByFilter('race_results', 'season_id = "z36hmcbqa75kt7k"', 'round', 1000, 0)
+      const results = app.findRecordsByFilter(
+        'race_results',
+        'season_id = "z36hmcbqa75kt7k"',
+        'round',
+        1000,
+        0,
+      )
       console.log(`[1741500083] Total de race_results encontrados para 2026: ${results.length}`)
 
       const driverStats = {}
@@ -216,7 +250,8 @@ migrate(
           constructorStats[tId].points += pts
           if (pos === 1) constructorStats[tId].wins += 1
           if (pos >= 1 && pos <= 3) constructorStats[tId].podiums += 1
-          if (pos > 0 && pos < constructorStats[tId].bestPosition) constructorStats[tId].bestPosition = pos
+          if (pos > 0 && pos < constructorStats[tId].bestPosition)
+            constructorStats[tId].bestPosition = pos
         }
       }
 
@@ -242,11 +277,14 @@ migrate(
           points: constructorStats[tId].points,
           wins: constructorStats[tId].wins,
           podiums: constructorStats[tId].podiums,
-          bestPosition: constructorStats[tId].bestPosition === 99 ? 10 : constructorStats[tId].bestPosition,
-          isPlayer: tId === '475a684zt1btgev'
+          bestPosition:
+            constructorStats[tId].bestPosition === 99 ? 10 : constructorStats[tId].bestPosition,
+          isPlayer: tId === '475a684zt1btgev',
         })
       }
-      constrList.sort((a, b) => b.points - a.points || b.wins - a.wins || a.bestPosition - b.bestPosition)
+      constrList.sort(
+        (a, b) => b.points - a.points || b.wins - a.wins || a.bestPosition - b.bestPosition,
+      )
 
       const drvList = []
       for (const dId in driverStats) {
@@ -269,13 +307,27 @@ migrate(
           points: driverStats[dId].points,
           wins: driverStats[dId].wins,
           podiums: driverStats[dId].podiums,
-          bestPosition: driverStats[dId].bestPosition === 99 ? 20 : driverStats[dId].bestPosition
+          bestPosition: driverStats[dId].bestPosition === 99 ? 20 : driverStats[dId].bestPosition,
         })
       }
-      drvList.sort((a, b) => b.points - a.points || b.wins - a.wins || a.bestPosition - b.bestPosition)
+      drvList.sort(
+        (a, b) => b.points - a.points || b.wins - a.wins || a.bestPosition - b.bestPosition,
+      )
 
-      const dChamp = drvList[0] || { id: 'd1', name: 'Max Verstappen', points: 350, wins: 10, podiums: 18 }
-      const cChamp = constrList[0] || { teamId: 't1', teamName: 'McLaren', points: 600, wins: 10, podiums: 20 }
+      const dChamp = drvList[0] || {
+        id: 'd1',
+        name: 'Max Verstappen',
+        points: 350,
+        wins: 10,
+        podiums: 18,
+      }
+      const cChamp = constrList[0] || {
+        teamId: 't1',
+        teamName: 'McLaren',
+        points: 600,
+        wins: 10,
+        podiums: 20,
+      }
 
       const playerSummary = constrList.find((c) => c.isPlayer) || {
         id: '475a684zt1btgev',
@@ -283,7 +335,7 @@ migrate(
         points: 0,
         wins: 0,
         podiums: 0,
-        bestPosition: 6
+        bestPosition: 6,
       }
       const playerRank = constrList.findIndex((c) => c.isPlayer) + 1 || 6
 
@@ -298,14 +350,14 @@ migrate(
             teamName: '',
             points: dChamp.points,
             wins: dChamp.wins,
-            podiums: dChamp.podiums
+            podiums: dChamp.podiums,
           })
           hist.set('constructors_champion', {
             teamId: cChamp.id,
             teamName: cChamp.name,
             points: cChamp.points,
             wins: cChamp.wins,
-            podiums: cChamp.podiums
+            podiums: cChamp.podiums,
           })
           hist.set('final_driver_standings', drvList)
           hist.set('final_constructor_standings', constrList)
@@ -317,14 +369,16 @@ migrate(
             wins: playerSummary.wins,
             podiums: playerSummary.podiums,
             closingCash: 46691666,
-            costCapSpent: 40700000
+            costCapSpent: 40700000,
           })
           hist.set('major_records', {
             totalRaces: 24,
-            mostWinsDriver: dChamp.name
+            mostWinsDriver: dChamp.name,
           })
           app.save(hist)
-          console.log('[1741500083] season_histories 5nhtg9yykdu8yde recalculado e salvo com sucesso!')
+          console.log(
+            '[1741500083] season_histories 5nhtg9yykdu8yde recalculado e salvo com sucesso!',
+          )
         }
       } catch (eHist) {
         console.log('[1741500083] Erro ao atualizar season_histories:', eHist)
@@ -335,5 +389,5 @@ migrate(
 
     console.log('[1741500083] Migração concluída com sucesso.')
   },
-  (app) => {}
+  (app) => {},
 )
