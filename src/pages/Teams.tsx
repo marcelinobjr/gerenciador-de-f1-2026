@@ -1106,6 +1106,79 @@ export default function TeamsPage() {
     fetchSeasonHistories()
   }, [])
 
+  // Ações de renovação / liberação de contratos expirando (Item 3)
+  const [processingContractId, setProcessingContractId] = useState<string | null>(null)
+
+  const handleRenewDriver = async (drv: DriverModel) => {
+    try {
+      setProcessingContractId(drv.id)
+      const renewalCost = (drv.salary || 5000000) * 1.15
+      if ((team?.budget || 0) < renewalCost) {
+        toast({
+          variant: 'destructive',
+          title: 'Orçamento Insuficiente',
+          description: `Renovar ${drv.name} exige ${formatCurrency(renewalCost)} em caixa.`,
+        })
+        return
+      }
+
+      const nextEnd = (season?.year || 2027) + 1
+      await pb.collection('drivers').update(drv.id, {
+        contract_end: nextEnd,
+        salary: Math.round(renewalCost),
+        career_status: 'f1_driver',
+      })
+
+      if (team?.id) {
+        await pb.collection('teams').update(team.id, {
+          budget: Math.max(0, (team.budget || 0) - renewalCost),
+        })
+      }
+
+      toast({
+        title: 'Contrato Renovado!',
+        description: `${drv.name} teve o contrato estendido até ${nextEnd} com sucesso.`,
+      })
+      await loadData()
+      await refreshTeamAndSeason()
+    } catch (err: any) {
+      toast({
+        variant: 'destructive',
+        title: 'Falha na renovação',
+        description: err?.message || 'Erro ao processar renovação de contrato.',
+      })
+    } finally {
+      setProcessingContractId(null)
+    }
+  }
+
+  const handleReleaseDriver = async (drv: DriverModel) => {
+    try {
+      setProcessingContractId(drv.id)
+      await pb.collection('drivers').update(drv.id, {
+        team_id: null,
+        role: 'reserva',
+        career_status: 'free_agent',
+        contract_end: seasonYear,
+      })
+
+      toast({
+        title: 'Piloto Liberado',
+        description: `${drv.name} foi liberado e agora está disponível no mercado de pilotos.`,
+      })
+      await loadData()
+      await refreshTeamAndSeason()
+    } catch (err: any) {
+      toast({
+        variant: 'destructive',
+        title: 'Falha ao liberar piloto',
+        description: err?.message || 'Erro ao processar liberação do piloto.',
+      })
+    } finally {
+      setProcessingContractId(null)
+    }
+  }
+
   // Colunas da DataTable de construtores
   const columns = useMemo<DataTableColumn<GridDisplayTeam>[]>(() => {
     return [
@@ -1318,6 +1391,19 @@ export default function TeamsPage() {
         >
           <Users className="w-4 h-4" />
           <span>Transferências da Virada</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setActiveTab('contracts')}
+          className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-semibold cursor-pointer transition-all ${
+            activeTab === 'contracts'
+              ? 'bg-[#E10600] text-white shadow-md'
+              : 'bg-[#11161F] text-[#8B95A7] hover:text-[#F5F7FA] border border-[#1F2733]'
+          }`}
+        >
+          <Flag className="w-4 h-4" />
+          <span>Avisos de Contratos ({expiringDrivers.length + expiringStaff.length})</span>
         </button>
 
         <button
@@ -1668,6 +1754,123 @@ export default function TeamsPage() {
             )}
           </div>
         </>
+      )}
+
+      {/* ABA AVISOS DE CONTRATOS (ITEM 3) */}
+      {activeTab === 'contracts' && (
+        <div className="relative z-10 space-y-4">
+          <div className="p-4 rounded-xl bg-[#11161F] border border-[#1F2733] space-y-1">
+            <h2 className="text-base font-bold text-[#F5F7FA] flex items-center gap-2">
+              <Flag className="w-4 h-4 text-amber-400" />
+              Gestão de Contratos Vencendo e Expirados
+            </h2>
+            <p className="text-xs text-[#8B95A7]">
+              Pilotos e staff sob seu comando com contrato no término: renove para mantê-los ou
+              deixe sair para liberá-los ao mercado aberto.
+            </p>
+          </div>
+
+          {expiringDrivers.length === 0 && expiringStaff.length === 0 ? (
+            <div className="p-6 rounded-xl bg-[#11161F] border border-[#1F2733] text-center text-xs text-[#8B95A7] space-y-2">
+              <Shield className="w-8 h-8 text-emerald-400 mx-auto" />
+              <p className="font-semibold text-[#F5F7FA]">Nenhum contrato vencendo imediatamente</p>
+              <p>Seus pilotos e profissionais chave possuem vínculos multianuais ativos.</p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {expiringDrivers.map((d) => {
+                const renewalCost = (d.salary || 5000000) * 1.15
+                const isProcessing = processingContractId === d.id
+                return (
+                  <div
+                    key={d.id}
+                    className="p-4 rounded-xl bg-[#11161F] border border-amber-500/40 space-y-3 shadow-md"
+                  >
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2.5">
+                        <span className="text-xl">{getFlag(d.nationality)}</span>
+                        <div>
+                          <h4 className="font-bold text-sm text-[#F5F7FA]">{d.name}</h4>
+                          <span className="text-[10px] text-amber-400 font-semibold uppercase">
+                            Piloto {d.role || 'Titular'} • Vence em {d.contract_end || seasonYear}
+                          </span>
+                        </div>
+                      </div>
+                      <Badge
+                        variant="outline"
+                        className="text-[10px] border-amber-500/40 bg-amber-500/10 text-amber-400 font-bold"
+                      >
+                        EXPIRANDO
+                      </Badge>
+                    </div>
+
+                    <div className="p-2.5 rounded-lg bg-[#0E131B] border border-[#1F2733] grid grid-cols-2 gap-2 text-xs">
+                      <div>
+                        <span className="text-[10px] text-[#8B95A7] block">Salário Atual</span>
+                        <strong className="text-[#F5F7FA] font-num">
+                          {formatCurrency(d.salary || 5000000)}
+                        </strong>
+                      </div>
+                      <div>
+                        <span className="text-[10px] text-[#8B95A7] block">
+                          Custo de Renovação (+1 ano)
+                        </span>
+                        <strong className="text-emerald-400 font-num">
+                          {formatCurrency(renewalCost)}
+                        </strong>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-2 pt-1">
+                      <Button
+                        size="sm"
+                        onClick={() => handleRenewDriver(d)}
+                        disabled={isProcessing}
+                        className="flex-1 bg-emerald-600 hover:bg-emerald-500 text-white text-xs h-8 cursor-pointer"
+                      >
+                        {isProcessing ? 'Processando...' : 'Renovar Contrato (+1 ano)'}
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => handleReleaseDriver(d)}
+                        disabled={isProcessing}
+                        className="flex-1 border-[#1F2733] hover:bg-red-500/20 hover:text-red-300 text-[#8B95A7] text-xs h-8 cursor-pointer"
+                      >
+                        Deixar Sair (Liberar ao Mercado)
+                      </Button>
+                    </div>
+                  </div>
+                )
+              })}
+
+              {expiringStaff.map((st, i) => (
+                <div
+                  key={i}
+                  className="p-4 rounded-xl bg-[#11161F] border border-[#1F2733] space-y-3"
+                >
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h4 className="font-bold text-sm text-[#F5F7FA]">{st.name || st.roleKey}</h4>
+                      <span className="text-[10px] text-cyan-400 font-semibold uppercase">
+                        Staff Técnico • {st.role || st.roleKey}
+                      </span>
+                    </div>
+                    <Badge
+                      variant="outline"
+                      className="text-[10px] border-amber-500/40 bg-amber-500/10 text-amber-400"
+                    >
+                      A VENCER
+                    </Badge>
+                  </div>
+                  <div className="p-2.5 rounded-lg bg-[#0E131B] border border-[#1F2733] text-xs text-[#8B95A7]">
+                    Vínculo previsto até o encerramento da temporada ativa.
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
       )}
 
       {/* ABA TRANSFERÊNCIAS */}
