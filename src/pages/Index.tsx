@@ -307,7 +307,13 @@ export default function IndexPage() {
       })
     }
 
-    if (!isSeasonCompletedPendingTransition) {
+    const isCompletedPending = Boolean(
+      season &&
+      (season.last_processed_round || 0) >= (season.total_rounds || 24) &&
+      !season.is_completed,
+    )
+
+    if (!isCompletedPending) {
       list.push({
         id: 'gp-strategy',
         priority: 'medium' as const,
@@ -340,7 +346,7 @@ export default function IndexPage() {
     })
 
     return list
-  }, [pendingDecision, titularDrivers, currentGP, isSeasonCompletedPendingTransition, seasonYear])
+  }, [pendingDecision, titularDrivers, currentGP, season, seasonYear])
 
   // Notícias do Paddock
   const paddockNews = useMemo(() => {

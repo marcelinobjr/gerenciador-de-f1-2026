@@ -35,6 +35,7 @@ import { canonicalChampionshipService } from '@/services/canonicalChampionshipSe
 import { formatCurrency } from '@/lib/formatters'
 import { toast } from '@/hooks/use-toast'
 
+// SeasonEndPage canônica
 export default function SeasonEndPage() {
   const navigate = useNavigate()
   const { team, season } = useUnifiedSeason()
@@ -473,10 +474,10 @@ export default function SeasonEndPage() {
                 Campeão Mundial de Pilotos
               </Badge>
               <h3 className="text-2xl font-black text-white mt-1">
-                {champions.driver?.name || champions.driver?.driverName || 'Max Verstappen'}
+                {champions.driver?.name || champions.driver?.driverName || '—'}
               </h3>
               <p className="text-xs text-amber-300/80 font-mono mt-0.5">
-                {champions.driver?.teamName || 'Equipe Campeã'} &bull;{' '}
+                {champions.driver?.teamName || '—'} &bull;{' '}
                 <span className="font-bold text-white">{champions.driver?.points ?? 0} pontos</span>
               </p>
             </div>
@@ -500,9 +501,7 @@ export default function SeasonEndPage() {
                 Campeão Mundial de Construtores
               </Badge>
               <h3 className="text-2xl font-black text-white mt-1">
-                {champions.constructor?.teamName ||
-                  champions.constructor?.name ||
-                  'McLaren F1 Team'}
+                {champions.constructor?.teamName || champions.constructor?.name || '—'}
               </h3>
               <p className="text-xs text-cyan-300/80 font-mono mt-0.5">
                 Título Oficial da FIA &bull;{' '}
