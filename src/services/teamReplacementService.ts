@@ -111,11 +111,21 @@ export class TeamReplacementService {
    * Filtra todas as que já estão no grid atual.
    */
   public getEligibleReplacementTeams(currentGridKeys: string[]): EligibleReplacementCandidate[] {
-    const registeredSet = new Set(currentGridKeys.map((k) => k.toLowerCase().trim()))
+    const registeredSet = new Set<string>()
+    for (const rawKey of currentGridKeys || []) {
+      if (!rawKey) continue
+      const str = String(rawKey).toLowerCase().trim()
+      registeredSet.add(str)
+      // Normalizar removendo caracteres especiais e espaços
+      registeredSet.add(str.replace(/[^a-z0-9]/g, ''))
+      // Remover prefixo ai_ se houver
+      registeredSet.add(str.replace(/^ai_/, ''))
+    }
 
-    // Universo real de 15 equipes "fora do campeonato" conforme especificação FIX-END-01A:
-    // Alfa Romeo, Benetton, BYD, Copersucar Fittipaldi, Fittipaldi, Honda HRC, Jordan,
-    // Lamborghini, Porsche, Renault, Sauber, AlphaTauri, Team Lotus Classic, Team Penske, Toleman
+    // Universo real de 15 equipes "fora do campeonato" conforme especificação FIX-ELIGIBLE-TEAMS-01A:
+    // Alfa Romeo F1 Team, Benetton Formula, BYD Formula E-Tech, Copersucar Fittipaldi, Fittipaldi Racing Team,
+    // Honda HRC F1 Team, Jordan Grand Prix, Lamborghini Squadra Corse, Porsche Motorsport, Renault F1 Team,
+    // Sauber Motorsport, Scuderia AlphaTauri, Team Lotus Classic, Team Penske F1, Toleman Motorsport
     const ALLOWED_UNIVERSE_KEYS = [
       'alfaromeo',
       'benetton',
@@ -136,20 +146,29 @@ export class TeamReplacementService {
 
     const universeCandidates = ALL_GRID_TEAMS_DATABASE.filter((candidate) => {
       const keyNorm = candidate.key.toLowerCase().trim()
+      const keyClean = keyNorm.replace(/[^a-z0-9]/g, '')
       const nameNorm = candidate.name.toLowerCase().trim()
-      // Deve pertencer ao universo das 15 equipes e não estar registrada no grid
-      const isAllowedUniverse = ALLOWED_UNIVERSE_KEYS.includes(keyNorm)
-      return isAllowedUniverse && !registeredSet.has(keyNorm) && !registeredSet.has(nameNorm)
-    }).map((t) => {
-      // Ajustar nomes para exibição fiel ao universo do jogo
-      let displayName = t.name
-      if (t.key === 'honda') displayName = 'Honda HRC'
-      if (t.key === 'penske') displayName = 'Team Penske'
-      if (t.key === 'lotus') displayName = 'Team Lotus Classic'
+      const nameClean = nameNorm.replace(/[^a-z0-9]/g, '')
+      const shortClean = candidate.shortName.toLowerCase().replace(/[^a-z0-9]/g, '')
 
+      // Deve pertencer ao universo das 15 equipes
+      const isAllowedUniverse =
+        ALLOWED_UNIVERSE_KEYS.includes(keyNorm) || ALLOWED_UNIVERSE_KEYS.includes(keyClean)
+      if (!isAllowedUniverse) return false
+
+      // Não pode estar registrada no grid participante atual
+      const isInGrid =
+        registeredSet.has(keyNorm) ||
+        registeredSet.has(keyClean) ||
+        registeredSet.has(nameNorm) ||
+        registeredSet.has(nameClean) ||
+        registeredSet.has(shortClean)
+
+      return !isInGrid
+    }).map((t) => {
       return {
         key: t.key,
-        name: displayName,
+        name: t.name,
         shortName: t.shortName,
         country: t.country,
         color: t.color,
@@ -195,11 +214,7 @@ export class TeamReplacementService {
       for (const rec of records.items) {
         if (rec.snapshot_data?.replacementDecision) {
           const dec = rec.snapshot_data.replacementDecision as ReplacementRecord
-          if (
-            !teamId ||
-            dec.lastPlaceTeamId === teamId ||
-            dec.lastPlaceTeamName?.toLowerCase().includes('mercedes')
-          ) {
+          if (!teamId || dec.lastPlaceTeamId === teamId) {
             return dec
           }
         }
@@ -245,16 +260,21 @@ export class TeamReplacementService {
         existingRecord = null
       }
 
-      const payload = {
+      const payload: any = {
         transition_key: transitionKey,
         from_season: record.fromSeasonYear,
         to_season: record.toSeasonYear,
-        team_id: record.lastPlaceTeamId,
         status: record.applied ? 'APPLIED' : 'DECIDED',
         current_step: 'REPLACEMENT_DECISION',
         snapshot_data: {
+          ...(existingRecord?.snapshot_data || {}),
           replacementDecision: record,
         },
+      }
+
+      // O campo team_id em season_transitions é uma relação para teams. Se lastPlaceTeamId for um id válido de team, preencher
+      if (record.lastPlaceTeamId && /^[a-z0-9]{15}$/.test(record.lastPlaceTeamId)) {
+        payload.team_id = record.lastPlaceTeamId
       }
 
       if (existingRecord) {
@@ -348,13 +368,13 @@ export class TeamReplacementService {
             strength: candidate.strength || 70,
             budget: candidate.budget || 100000000,
             cost_cap_spent: 0,
-            engine_supplier: candidate.engine.includes('Ferrari')
+            engine_supplier: candidate.engine?.includes('Ferrari')
               ? 'Ferrari'
-              : candidate.engine.includes('Mercedes')
+              : candidate.engine?.includes('Mercedes')
                 ? 'Mercedes'
-                : candidate.engine.includes('Honda')
+                : candidate.engine?.includes('Honda')
                   ? 'Honda'
-                  : candidate.engine.includes('Ford')
+                  : candidate.engine?.includes('Ford')
                     ? 'Ford'
                     : 'Audi',
             is_custom: false,

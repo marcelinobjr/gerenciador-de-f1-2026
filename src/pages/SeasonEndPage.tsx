@@ -362,8 +362,12 @@ export default function SeasonEndPage() {
         const last = teamReplacementService.identifyLastPlaceTeam(cleanOfficialConstructors)
         if (last) {
           setLastPlaceTeam(last)
-          const currentKeys = (allTeams || []).map((t: any) => t.key || t.team_key || t.name)
-          const candidates = teamReplacementService.getEligibleReplacementTeams(currentKeys)
+          // Obter chaves/identificadores das equipes participantes da temporada atual (cleanOfficialConstructors)
+          const participatingKeys = cleanOfficialConstructors.map(
+            (c: any) =>
+              c.teamKey || c.team_key || c.key || c.teamId || c.id || c.teamName || c.name,
+          )
+          const candidates = teamReplacementService.getEligibleReplacementTeams(participatingKeys)
           setEligibleReplacements(candidates)
           if (candidates.length > 0) {
             setSelectedReplacementKey(candidates[0].key)
@@ -378,8 +382,14 @@ export default function SeasonEndPage() {
           )
           if (persisted) {
             setReplacementChoice(persisted.decision)
-            if (persisted.replacementTeamKey) {
+            // Se houver registro de substituição prévio, garantir que seja válido entre os candidatos ou redefinir
+            if (
+              persisted.replacementTeamKey &&
+              candidates.some((c) => c.key === persisted.replacementTeamKey)
+            ) {
               setSelectedReplacementKey(persisted.replacementTeamKey)
+            } else if (candidates.length > 0) {
+              setSelectedReplacementKey(candidates[0].key)
             }
             setDecisionConfirmed(persisted.confirmed)
           }
@@ -737,9 +747,31 @@ export default function SeasonEndPage() {
               <Button
                 type="button"
                 variant={replacementChoice === 'KEEP' ? 'default' : 'outline'}
-                onClick={() => {
+                onClick={async () => {
                   setReplacementChoice('KEEP')
                   setDecisionConfirmed(true)
+                  const fromYear = season?.year || 2026
+                  const toYear = fromYear + 1
+                  try {
+                    await teamReplacementService.saveReplacementDecision({
+                      transitionKey: teamReplacementService.getReplacementKey(
+                        fromYear,
+                        toYear,
+                        lastPlaceTeam.teamId,
+                      ),
+                      fromSeasonYear: fromYear,
+                      toSeasonYear: toYear,
+                      lastPlaceTeamId: lastPlaceTeam.teamId,
+                      lastPlaceTeamName: lastPlaceTeam.teamName,
+                      decision: 'KEEP',
+                      officialRankingReference: `Mundial de Construtores ${fromYear} - P${lastPlaceTeam.rank}`,
+                      confirmed: true,
+                      applied: false,
+                      createdAt: new Date().toISOString(),
+                    })
+                  } catch (e) {
+                    console.warn('Erro ao salvar decisão KEEP:', e)
+                  }
                 }}
                 className={
                   replacementChoice === 'KEEP'
@@ -825,11 +857,38 @@ export default function SeasonEndPage() {
                   </span>
                   <Button
                     size="sm"
-                    onClick={() => {
+                    onClick={async () => {
                       setDecisionConfirmed(true)
+                      const fromYear = season?.year || 2026
+                      const toYear = fromYear + 1
+                      const chosenCandidate = eligibleReplacements.find(
+                        (c) => c.key === selectedReplacementKey,
+                      )
+                      try {
+                        await teamReplacementService.saveReplacementDecision({
+                          transitionKey: teamReplacementService.getReplacementKey(
+                            fromYear,
+                            toYear,
+                            lastPlaceTeam.teamId,
+                          ),
+                          fromSeasonYear: fromYear,
+                          toSeasonYear: toYear,
+                          lastPlaceTeamId: lastPlaceTeam.teamId,
+                          lastPlaceTeamName: lastPlaceTeam.teamName,
+                          decision: 'REPLACE',
+                          replacementTeamKey: selectedReplacementKey,
+                          replacementTeamName: chosenCandidate?.name,
+                          officialRankingReference: `Mundial de Construtores ${fromYear} - P${lastPlaceTeam.rank}`,
+                          confirmed: true,
+                          applied: false,
+                          createdAt: new Date().toISOString(),
+                        })
+                      } catch (e) {
+                        console.warn('Erro ao salvar decisão no clique de confirmação:', e)
+                      }
                       toast({
                         title: 'Decisão Registrada',
-                        description: `A equipe ${eligibleReplacements.find((c) => c.key === selectedReplacementKey)?.name || 'selecionada'} substituirá ${lastPlaceTeam.teamName} na temporada seguinte.`,
+                        description: `A equipe ${chosenCandidate?.name || 'selecionada'} substituirá ${lastPlaceTeam.teamName} na temporada seguinte.`,
                       })
                     }}
                     className={
