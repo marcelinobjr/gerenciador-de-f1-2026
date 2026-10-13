@@ -294,6 +294,24 @@ export default function TeamsPage() {
   const careerId = resolveCanonicalCareerId(season, team)
   const seasonYear = season?.year || 2026
 
+  // Contratos vencendo / vencidos (item 3)
+  const expiringDrivers = useMemo(() => {
+    if (!playerDrivers) return []
+    return playerDrivers.filter((d) => (d.contract_end || 2026) <= seasonYear)
+  }, [playerDrivers, seasonYear])
+
+  const expiringStaff = useMemo(() => {
+    const org = (team as any)?.technical_organization
+    if (!org?.staff) return []
+    const members: any[] = []
+    Object.entries(org.staff).forEach(([roleKey, staffMember]: [string, any]) => {
+      if (staffMember && (staffMember.contractEndYear || 2026) <= seasonYear) {
+        members.push({ ...staffMember, roleKey })
+      }
+    })
+    return members
+  }, [team, seasonYear])
+
   const championshipSnapshot = useMemo(() => {
     return canonicalChampionshipService.getChampionshipStandings(
       careerId,
@@ -606,22 +624,35 @@ export default function TeamsPage() {
       }
     })
 
+    // Se houver equipe substituta decidida (ex: andretti substituída por outra ou toyota), refletir no grid
+    const replacementDecision = transitionData?.snapshot_data?.replacementDecision
+    const replacedTeamKey = replacementDecision?.applied && replacementDecision?.decision === 'REPLACE'
+      ? replacementDecision.lastPlaceTeamId?.toLowerCase()
+      : null
+    const entrantTeamKey = replacementDecision?.applied && replacementDecision?.decision === 'REPLACE'
+      ? replacementDecision.replacementTeamKey?.toLowerCase()
+      : null
+
+    const addedKeys = new Set<string>()
+
     // Equipes oficiais
     OFFICIAL_GRID_TEAMS.forEach((official) => {
-      const isThisUserTeam =
-        !isCustomTeam &&
-        ((team?.team_key && team.team_key === official.key) ||
-          (team?.name && team.name.toLowerCase() === official.name.toLowerCase()) ||
-          (team?.id &&
-            allDbTeams.some((dbT) => dbT.id === team.id && dbT.team_key === official.key)))
+      // Se esta equipe foi substituída formalmente
+      if (replacedTeamKey && (official.key === replacedTeamKey || official.name.toLowerCase().includes(replacedTeamKey))) {
+        return
+      }  const isThisUserTeam =
+    !isCustomTeam &&
+    ((team?.team_key && team.team_key === official.key) ||
+      (team?.name && team.name.toLowerCase() === official.name.toLowerCase()) ||
+      (team?.id && allDbTeams.some((dbT) => dbT.id === team.id && dbT.team_key === official.key)))
 
-      const matchedDbTeam = isThisUserTeam
-        ? team
-        : allDbTeams.find(
-            (dbT) =>
-              (dbT.team_key && dbT.team_key === official.key) ||
-              dbT.name.toLowerCase() === official.name.toLowerCase(),
-          )
+  const matchedDbTeam = isThisUserTeam
+    ? team
+    : allDbTeams.find(
+        (dbT) =>
+          (dbT.team_key && dbT.team_key === official.key) ||
+          dbT.name.toLowerCase() === official.name.toLowerCase(),
+      )
 
       const effStrengthRating =
         isThisUserTeam && team?.strength
@@ -732,7 +763,109 @@ export default function TeamsPage() {
         driver2: d2,
         reserveDriver: rD,
       })
+      addedKeys.add(official.key)
     })
+
+    // Verificar se há outras equipes ativas no banco de dados (ex: 12ª equipe)
+    allDbTeams.forEach((dbT) => {
+      const key = dbT.team_key || dbT.id
+      if (addedKeys.has(key)) return
+      // Se for a equipe do usuário ou tiver status ativo ou pertencer à temporada
+      if (dbT.id === team?.id || (dbT.season_id && dbT.season_id === season?.id) || dbT.team_key === entrantTeamKey) {
+        const confirmed = resolveConfirmedTitulars(
+          dbT.id,
+          key,
+          {
+            name: 'Piloto 1',
+            speed: 80,
+            consistency: 80,
+            nationality: 'Brasil',
+            flag: '🇧🇷',
+            age: 24,
+          },
+          {
+            name: 'Piloto 2',
+            speed: 79,
+            consistency: 79,
+            nationality: 'Japão',
+            flag: '🇯🇵',
+            age: 23,
+          }
+        )
+        list.push({
+          key,
+          name: dbT.name,
+          color: dbT.color || '#475569',
+          engine: (dbT.engine_supplier as any) || 'Mercedes',
+          strengthRating: Number(((dbT.strength || 65) / 10).toFixed(1)),
+          carLevel: 65,
+          strengthVerdict: 'Equipe do Grid 2027',
+          budget: dbT.budget || 120000000,
+          historySummary: 'Equipe confirmada na disputa do Campeonato Mundial 2027.',
+          currentSituation: 'Preparada para a abertura da temporada.',
+          isUserTeam: dbT.id === team?.id,
+          teamRecord: dbT,
+          position: 0,
+          points: 0,
+          wins: 0,
+          paceCombined: 65.0,
+          paceVerdict: 'Em desenvolvimento',
+          driver1: confirmed.d1,
+          driver2: confirmed.d2,
+        })
+        addedKeys.add(key)
+      }
+    })
+
+    // Se houver equipe entrante substituta confirmada no banco
+    if (entrantTeamKey && !addedKeys.has(entrantTeamKey)) {
+      const entrantDb = allDbTeams.find(
+        (t) => t.team_key === entrantTeamKey || t.name.toLowerCase().includes(entrantTeamKey)
+      )
+      if (entrantDb && !list.some((l) => l.key === entrantTeamKey || l.name === entrantDb.name)) {
+        const confirmed = resolveConfirmedTitulars(
+          entrantDb.id,
+          entrantTeamKey,
+          {
+            name: 'Piloto Entrante 1',
+            speed: 80,
+            consistency: 80,
+            nationality: 'Brasil',
+            flag: '🇧🇷',
+            age: 24,
+          },
+          {
+            name: 'Piloto Entrante 2',
+            speed: 79,
+            consistency: 79,
+            nationality: 'Japão',
+            flag: '🇯🇵',
+            age: 23,
+          }
+        )
+        list.push({
+          key: entrantTeamKey,
+          name: entrantDb.name,
+          color: entrantDb.color || '#334155',
+          engine: (entrantDb.engine_supplier as any) || 'Mercedes',
+          strengthRating: Number(((entrantDb.strength || 65) / 10).toFixed(1)),
+          carLevel: 65,
+          strengthVerdict: 'Equipe substituta entrante',
+          budget: entrantDb.budget || 120000000,
+          historySummary: 'Nova escuderia aprovada pela FIA para a disputa do Mundial 2027.',
+          currentSituation: 'Estreando no grid oficial com nova estrutura técnica e pacote de motores.',
+          isUserTeam: entrantDb.id === team?.id,
+          teamRecord: entrantDb,
+          position: 0,
+          points: 0,
+          wins: 0,
+          paceCombined: 65.0,
+          paceVerdict: 'Em desenvolvimento',
+          driver1: confirmed.d1,
+          driver2: confirmed.d2,
+        })
+      }
+    }
 
     // Ordenar a lista por posição de construtores (se houver) ou força
     return list.sort((a, b) => {
@@ -938,7 +1071,7 @@ export default function TeamsPage() {
   }, [allDisplayTeams])
 
   // Abas da página de Equipes / Grid
-  const [activeTab, setActiveTab] = useState<'grid' | 'transfers' | 'history'>('grid')
+  const [activeTab, setActiveTab] = useState<'grid' | 'transfers' | 'history' | 'contracts'>('grid')
   const [seasonHistories, setSeasonHistories] = useState<any[]>([])
   const [loadingHistory, setLoadingHistory] = useState(false)
   const [selectedHistorySeason, setSelectedHistorySeason] = useState<number>(2026)
