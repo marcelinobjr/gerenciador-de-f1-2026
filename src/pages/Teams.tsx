@@ -126,6 +126,9 @@ export default function TeamsPage() {
   const [viewMode, setViewMode] = useState<'table' | 'cards'>('table')
   const [selectedTeam, setSelectedTeam] = useState<GridDisplayTeam | null>(null)
   const [uploadingTeamId, setUploadingTeamId] = useState<string | null>(null)
+  const [activeTab, setActiveTab] = useState<'grid' | 'transfers' | 'history' | 'contracts'>('grid')
+  const [teams, setTeams] = useState<any[]>([])
+  const [loadingTeams, setLoadingTeams] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const activeUploadTeamRef = useRef<{
     teamRecord?: TeamModel
@@ -780,7 +783,7 @@ export default function TeamsPage() {
       // Se for a equipe do usuário ou tiver status ativo ou pertencer à temporada
       if (
         dbT.id === team?.id ||
-        (dbT.season_id && dbT.season_id === season?.id) ||
+        ((dbT as any).season_id && (dbT as any).season_id === season?.id) ||
         dbT.team_key === entrantTeamKey
       ) {
         const confirmed = resolveConfirmedTitulars(
@@ -1082,8 +1085,7 @@ export default function TeamsPage() {
     }
   }, [allDisplayTeams])
 
-  // Abas da página de Equipes / Grid
-  const [activeTab, setActiveTab] = useState<'grid' | 'transfers' | 'history' | 'contracts'>('grid')
+  // Abas da página de Equipes / Grid (estado unificado)
   const [seasonHistories, setSeasonHistories] = useState<any[]>([])
   const [loadingHistory, setLoadingHistory] = useState(false)
   const [selectedHistorySeason, setSelectedHistorySeason] = useState<number>(2026)

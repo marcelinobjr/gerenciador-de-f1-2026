@@ -60,6 +60,118 @@ export function getNextPowerUnitId(history: PowerUnitHistoryEntry[]): number {
 }
 
 /**
+ * CICLO DE MOTORES (Item 6):
+ * Temporada começa com 8 motores novos (4 por piloto titular).
+ * Cada motor aguenta 4 a 6 corridas (sorteado aleatoriamente na faixa).
+ * Se quebrar (wear >= 100 ou falha severa), a condição cai drasticamente.
+ * Desgaste zerado a cada virada de temporada.
+ */
+export interface EngineCycleConfig {
+  unitsPerDriver: number // Padrão: 4
+  totalSeasonUnits: number // Padrão: 8 (4 por piloto x 2 pilotos)
+  minRacesLifespan: number // Padrão: 4
+  maxRacesLifespan: number // Padrão: 6
+}
+
+export const DEFAULT_ENGINE_CYCLE_CONFIG: EngineCycleConfig = {
+  unitsPerDriver: 4,
+  totalSeasonUnits: 8,
+  minRacesLifespan: 4,
+  maxRacesLifespan: 6,
+}
+
+/**
+ * Sorteia uma vida útil de 4 a 6 corridas para uma nova PU.
+ */
+export function generateEngineLifespanRaces(): number {
+  return Math.floor(Math.random() * 3) + 4
+}
+
+/**
+ * Inicializa ou restaura o ciclo regulamentar da temporada para a equipe:
+ * 8 unidades zeradas (4 por piloto), com vida útil estimada entre 4 e 6 corridas cada.
+ */
+export function initializeSeasonEngineCycle(params: {
+  team: TeamModel
+  driverIds: [string, string]
+  seasonYear: number
+  supplier?: string
+}): PowerUnitHistoryEntry[] {
+  const { team, driverIds, seasonYear } = params
+  const supplier = params.supplier || team.engine_supplier || 'Audi'
+  const currentHistory: PowerUnitHistoryEntry[] = Array.isArray(team.engine_history)
+    ? [...team.engine_history]
+    : []
+
+  // Preservar unidades de anos anteriores arquivadas
+  const otherSeasonsUnits = currentHistory.filter((entry) => entry.seasonYear !== seasonYear)
+
+  const newSeasonUnits: PowerUnitHistoryEntry[] = []
+  let nextId = getNextPowerUnitId(otherSeasonsUnits)
+
+  driverIds.forEach((drvId, drvIdx) => {
+    const assignedCar = (drvIdx + 1) as 1 | 2
+    for (let unitNum = 1; unitNum <= DEFAULT_ENGINE_CYCLE_CONFIG.unitsPerDriver; unitNum++) {
+      const lifespanRaces = generateEngineLifespanRaces()
+      newSeasonUnits.push({
+        id: nextId++,
+        wear: 0,
+        condition: 100,
+        mileage_km: 0,
+        status: unitNum === 1 ? 'instalado' : 'reserva',
+        assignedCar: unitNum === 1 ? assignedCar : undefined,
+        supplier,
+        introducedRound: 1,
+        exceedsQuota: false,
+        driverId: drvId,
+        seasonYear,
+        unitNumber: unitNum,
+        lifespanRaces,
+      } as PowerUnitHistoryEntry & { lifespanRaces?: number })
+    }
+  })
+
+  return [...otherSeasonsUnits, ...newSeasonUnits]
+}
+
+/**
+ * Aplica desgaste a uma PU após uma corrida levando em conta sua vida útil planejada (4-6 GPs).
+ * Se quebrar (wear >= 100 ou falha crítica), status passa a "quebrado" e condition cai drasticamente (< 20%).
+ */
+export function applyEngineRaceDegradation(
+  unit: PowerUnitHistoryEntry & { lifespanRaces?: number },
+  options?: {
+    racesRun?: number
+    hadMechanicalFailure?: boolean
+    wearModifier?: number
+  },
+): PowerUnitHistoryEntry & { lifespanRaces?: number } {
+  const lifespan = unit.lifespanRaces || 5
+  // Cada corrida consome proporcionalmente ~ (100 / lifespan)%
+  const baseWearPerRace = Math.round(100 / lifespan)
+  const modifier = options?.wearModifier || 0
+  const addedWear = Math.max(12, baseWearPerRace + modifier)
+
+  let newWear = Math.min(100, (unit.wear || 0) + addedWear)
+  let newCondition = Math.max(0, 100 - newWear)
+  let newStatus = unit.status
+
+  if (options?.hadMechanicalFailure || newWear >= 95) {
+    newWear = 100
+    newCondition = Math.min(15, newCondition)
+    newStatus = 'quebrado' as any
+  }
+
+  return {
+    ...unit,
+    wear: newWear,
+    condition: newCondition,
+    status: newStatus,
+    mileage_km: (unit.mileage_km || 0) + 305,
+  }
+}
+
+/**
  * Garante a existência de exatamente as 4 unidades regulamentares (unitNumber: 1..4)
  * para um determinado piloto e temporada no histórico de motores da equipe.
  *

@@ -1061,20 +1061,22 @@ export interface AICompetitor {
 // Retorna as equipes IA rivais baseado se o jogador assumiu uma existente ou criou a 12ª
 export function getAICompetitors(
   playerTeamKey?: string,
-  isCustomTeam: boolean = true,
+  isCustomTeam: boolean = false,
 ): AICompetitor[] {
-  // O grid total possui 12 equipes (24 pilotos). Se o jogador criar uma equipe customizada,
-  // pegamos 11 equipes oficiais rivais (para somar 11 + 1 = 12 equipes, 24 carros).
-  // Se o jogador assumiu uma oficial (ex: ferrari), removemos a ferrari e sobram 11 oficiais (11 + 1 = 12 equipes).
+  // O grid total possui 12 equipes (24 pilotos). Se o jogador assumiu uma das 12 equipes ativas,
+  // filtramos a equipe do jogador e sobram 11 equipes IA rivais (11 + 1 = 12 equipes, 24 carros).
   let list = OFFICIAL_GRID_TEAMS.filter((team) => {
-    if (!isCustomTeam && playerTeamKey && team.key === playerTeamKey) {
+    if (
+      playerTeamKey &&
+      (team.key === playerTeamKey || team.name.toLowerCase() === playerTeamKey.toLowerCase())
+    ) {
       return false
     }
     return true
   })
 
-  // Se o jogador é custom e a lista tem 12 equipes, removemos 1 oficial (a última) para manter exatos 22 carros rivais (22 + 2 do jogador = 24 pilotos)
-  if (isCustomTeam && list.length > 11) {
+  // Garantir exatamente 11 equipes rivais para completar as 12 do campeonato oficial
+  if (list.length > 11) {
     list = list.slice(0, 11)
   }
 

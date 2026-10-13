@@ -750,6 +750,14 @@ export class SeasonTransitionService {
           ? `era_${toSeasonYear}_${activatedFutureRegulationInfo.category.toLowerCase()}`
           : (currentSeason as any).technical_era_id || 'era_2026_active_aerodynamics',
       })
+
+      // ZERAÇÃO DE DESGASTE DE PEÇAS E INICIALIZAÇÃO DO CICLO DE MOTORES (8 unidades zeradas)
+      try {
+        await this.resetCarPartsWearAndEngineCycle(playerTeam, toSeasonYear)
+      } catch (err) {
+        console.warn('Erro ao inicializar ciclo de motores e desgaste zerado na virada:', err)
+      }
+
       updateStep(
         'CREATING_NEXT_SEASON',
         'done',
@@ -1416,6 +1424,39 @@ export class SeasonTransitionService {
       return { reconciled: true, message: 'Histórico de 2026 reconciliado com sucesso.' }
     } catch (err: any) {
       return { reconciled: false, message: `Falha na reconciliação: ${err?.message || err}` }
+    }
+  }
+
+  /**
+   * Zera o desgaste das peças do carro e inicializa o ciclo oficial de motores:
+   * 8 unidades novas (4 por piloto titular), com vida útil estimada de 4 a 6 corridas.
+   */
+  public async resetCarPartsWearAndEngineCycle(
+    team: TeamModel,
+    toSeasonYear: number,
+  ): Promise<void> {
+    try {
+      const drivers = await f1Service.getTeamDrivers(team.id)
+      const titulares = drivers.filter((d) => d.role === 'titular')
+      const driverIds: [string, string] = [
+        titulares[0]?.id || 'drv_p1',
+        titulares[1]?.id || 'drv_p2',
+      ]
+
+      const { initializeSeasonEngineCycle } = await import('./canonicalPowerUnitInventoryService')
+      const newEngineHistory = initializeSeasonEngineCycle({
+        team,
+        driverIds,
+        seasonYear: toSeasonYear,
+      })
+
+      await pb.collection('teams').update(team.id, {
+        active_engine_wear: 0,
+        active_gearbox_wear: 0,
+        engine_history: newEngineHistory,
+      })
+    } catch (err) {
+      console.warn('Erro ao resetar desgaste de peças e motores no banco:', err)
     }
   }
 

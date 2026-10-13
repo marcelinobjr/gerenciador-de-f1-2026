@@ -313,8 +313,8 @@ export default function StandingsPage() {
             }`}
           >
             <Award className="w-3.5 h-3.5" />
-            <span className="tracking-wide uppercase">RESULTADOS</span>
-          </button>
+            <span className="tracking-wide uppercase">CAMPEONATOS ANTERIORES</span>
+          </button>{' '}
         </div>
       </div>
 
@@ -345,7 +345,7 @@ export default function StandingsPage() {
                 ? `Campeonato Mundial de Pilotos ${seasonYear}`
                 : activeTab === 'constructors'
                   ? `Campeonato Mundial de Construtores ${seasonYear}`
-                  : `Arquivo Histórico de Campeões da F1`}
+                  : `Campeonatos Anteriores (Histórico Oficial)`}
             </h2>
 
             <p className="text-xs sm:text-sm text-neutral-300 leading-relaxed font-sans">
@@ -353,7 +353,7 @@ export default function StandingsPage() {
                 ? 'Os melhores do mundo. Uma só coroa.'
                 : activeTab === 'constructors'
                   ? 'Engenharia, pessoas e performance. Uma temporada para definir o melhor conjunto.'
-                  : 'Consulte os arquivos oficiais consolidados, pódio dos campeões e tabelas completas de temporadas encerradas.'}
+                  : 'Consulte a classificação final de pilotos e construtores de cada temporada concluída (fonte: season_histories).'}
             </p>
           </div>
 
