@@ -626,33 +626,40 @@ export default function TeamsPage() {
 
     // Se houver equipe substituta decidida (ex: andretti substituída por outra ou toyota), refletir no grid
     const replacementDecision = transitionData?.snapshot_data?.replacementDecision
-    const replacedTeamKey = replacementDecision?.applied && replacementDecision?.decision === 'REPLACE'
-      ? replacementDecision.lastPlaceTeamId?.toLowerCase()
-      : null
-    const entrantTeamKey = replacementDecision?.applied && replacementDecision?.decision === 'REPLACE'
-      ? replacementDecision.replacementTeamKey?.toLowerCase()
-      : null
+    const replacedTeamKey =
+      replacementDecision?.applied && replacementDecision?.decision === 'REPLACE'
+        ? replacementDecision.lastPlaceTeamId?.toLowerCase()
+        : null
+    const entrantTeamKey =
+      replacementDecision?.applied && replacementDecision?.decision === 'REPLACE'
+        ? replacementDecision.replacementTeamKey?.toLowerCase()
+        : null
 
     const addedKeys = new Set<string>()
 
     // Equipes oficiais
     OFFICIAL_GRID_TEAMS.forEach((official) => {
       // Se esta equipe foi substituída formalmente
-      if (replacedTeamKey && (official.key === replacedTeamKey || official.name.toLowerCase().includes(replacedTeamKey))) {
+      if (
+        replacedTeamKey &&
+        (official.key === replacedTeamKey || official.name.toLowerCase().includes(replacedTeamKey))
+      ) {
         return
-      }  const isThisUserTeam =
-    !isCustomTeam &&
-    ((team?.team_key && team.team_key === official.key) ||
-      (team?.name && team.name.toLowerCase() === official.name.toLowerCase()) ||
-      (team?.id && allDbTeams.some((dbT) => dbT.id === team.id && dbT.team_key === official.key)))
+      }
+      const isThisUserTeam =
+        !isCustomTeam &&
+        ((team?.team_key && team.team_key === official.key) ||
+          (team?.name && team.name.toLowerCase() === official.name.toLowerCase()) ||
+          (team?.id &&
+            allDbTeams.some((dbT) => dbT.id === team.id && dbT.team_key === official.key)))
 
-  const matchedDbTeam = isThisUserTeam
-    ? team
-    : allDbTeams.find(
-        (dbT) =>
-          (dbT.team_key && dbT.team_key === official.key) ||
-          dbT.name.toLowerCase() === official.name.toLowerCase(),
-      )
+      const matchedDbTeam = isThisUserTeam
+        ? team
+        : allDbTeams.find(
+            (dbT) =>
+              (dbT.team_key && dbT.team_key === official.key) ||
+              dbT.name.toLowerCase() === official.name.toLowerCase(),
+          )
 
       const effStrengthRating =
         isThisUserTeam && team?.strength
@@ -771,7 +778,11 @@ export default function TeamsPage() {
       const key = dbT.team_key || dbT.id
       if (addedKeys.has(key)) return
       // Se for a equipe do usuário ou tiver status ativo ou pertencer à temporada
-      if (dbT.id === team?.id || (dbT.season_id && dbT.season_id === season?.id) || dbT.team_key === entrantTeamKey) {
+      if (
+        dbT.id === team?.id ||
+        (dbT.season_id && dbT.season_id === season?.id) ||
+        dbT.team_key === entrantTeamKey
+      ) {
         const confirmed = resolveConfirmedTitulars(
           dbT.id,
           key,
@@ -790,7 +801,7 @@ export default function TeamsPage() {
             nationality: 'Japão',
             flag: '🇯🇵',
             age: 23,
-          }
+          },
         )
         list.push({
           key,
@@ -820,7 +831,7 @@ export default function TeamsPage() {
     // Se houver equipe entrante substituta confirmada no banco
     if (entrantTeamKey && !addedKeys.has(entrantTeamKey)) {
       const entrantDb = allDbTeams.find(
-        (t) => t.team_key === entrantTeamKey || t.name.toLowerCase().includes(entrantTeamKey)
+        (t) => t.team_key === entrantTeamKey || t.name.toLowerCase().includes(entrantTeamKey),
       )
       if (entrantDb && !list.some((l) => l.key === entrantTeamKey || l.name === entrantDb.name)) {
         const confirmed = resolveConfirmedTitulars(
@@ -841,7 +852,7 @@ export default function TeamsPage() {
             nationality: 'Japão',
             flag: '🇯🇵',
             age: 23,
-          }
+          },
         )
         list.push({
           key: entrantTeamKey,
@@ -853,7 +864,8 @@ export default function TeamsPage() {
           strengthVerdict: 'Equipe substituta entrante',
           budget: entrantDb.budget || 120000000,
           historySummary: 'Nova escuderia aprovada pela FIA para a disputa do Mundial 2027.',
-          currentSituation: 'Estreando no grid oficial com nova estrutura técnica e pacote de motores.',
+          currentSituation:
+            'Estreando no grid oficial com nova estrutura técnica e pacote de motores.',
           isUserTeam: entrantDb.id === team?.id,
           teamRecord: entrantDb,
           position: 0,
