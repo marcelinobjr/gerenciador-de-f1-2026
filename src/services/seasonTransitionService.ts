@@ -190,6 +190,33 @@ export class SeasonTransitionService {
   /**
    * Validação estrita de pré-requisitos antes de liberar a transição
    */
+  /**
+   * Detecta se há uma transição RUNNING órfã (iniciada há mais de 3 minutos sem progresso)
+   */
+  public async detectOrphanTransition(params: {
+    teamId: string
+    fromSeasonYear: number
+    toSeasonYear: number
+  }): Promise<{ isOrphan: boolean; transitionRecord: any | null }> {
+    const { teamId, fromSeasonYear, toSeasonYear } = params
+    const transitionKey = `${fromSeasonYear}->${toSeasonYear}_${teamId}`
+    try {
+      const existing = await pb
+        .collection('season_transitions')
+        .getFirstListItem(`transition_key="${transitionKey}"`)
+      if (existing && existing.status === 'RUNNING' && !existing.completed_at) {
+        const lastUpdated = new Date(existing.updated || existing.created).getTime()
+        const now = Date.now()
+        // Mais de 2 minutos sem atualização é considerado órfão / travado
+        const isOrphan = now - lastUpdated > 120000
+        return { isOrphan, transitionRecord: existing }
+      }
+    } catch {
+      // sem transição
+    }
+    return { isOrphan: false, transitionRecord: null }
+  }
+
   public async validatePreConditions(params: {
     teamId: string
     currentSeason: SeasonModel
@@ -265,14 +292,26 @@ export class SeasonTransitionService {
       }
       callbacks?.onProgress?.([...steps])
       callbacks?.onStatusChange?.(id, msg || '')
+
+      if (transitionRecordId) {
+        // Persistência em tempo real de cada passo e status na transição
+        pb.collection('season_transitions')
+          .update(transitionRecordId, {
+            current_step: id,
+            status: status === 'failed' ? 'FAILED' : 'RUNNING',
+            error_message: status === 'failed' ? msg || '' : '',
+          })
+          .catch(() => {})
+      }
     }
 
-    // 1. Verificar idempotência: transição já realizada?
+    // 1. Verificar idempotência e retomada de transição órfã/interrompida
+    let existingTransitionRecord: any = null
     try {
-      const existing = await pb
+      existingTransitionRecord = await pb
         .collection('season_transitions')
         .getFirstListItem(`transition_key="${transitionKey}"`)
-      if (existing && existing.status === 'COMPLETE') {
+      if (existingTransitionRecord && existingTransitionRecord.status === 'COMPLETE') {
         // Já foi realizada de forma atômica e segura. Retornar os dados já arquivados sem duplicar nada!
         const historyRec = await pb
           .collection('season_histories')
@@ -330,19 +369,28 @@ export class SeasonTransitionService {
     // Criar Snapshot Técnico de Segurança
     const snapshot = await this.createTransitionSnapshot(teamId, fromSeasonYear, toSeasonYear)
 
-    // Registrar no banco início da transição
-    let transitionRecordId = ''
+    // Registrar ou retomar no banco o progresso da transição
+    let transitionRecordId = existingTransitionRecord?.id || ''
     try {
-      const rec = await pb.collection('season_transitions').create({
-        transition_key: transitionKey,
-        from_season: fromSeasonYear,
-        to_season: toSeasonYear,
-        team_id: teamId,
-        status: 'RUNNING',
-        current_step: 'VALIDATING',
-        snapshot_data: snapshot,
-      })
-      transitionRecordId = rec.id
+      if (existingTransitionRecord) {
+        await pb.collection('season_transitions').update(existingTransitionRecord.id, {
+          status: 'RUNNING',
+          current_step: 'VALIDATING',
+          error_message: '',
+          updated: new Date().toISOString(),
+        })
+      } else {
+        const rec = await pb.collection('season_transitions').create({
+          transition_key: transitionKey,
+          from_season: fromSeasonYear,
+          to_season: toSeasonYear,
+          team_id: teamId,
+          status: 'RUNNING',
+          current_step: 'VALIDATING',
+          snapshot_data: snapshot,
+        })
+        transitionRecordId = rec.id
+      }
     } catch (err) {
       // tolerância se mock ou offline
     }

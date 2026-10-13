@@ -481,6 +481,19 @@ export default function IndexPage() {
         </div>
       )}
 
+      {/* Badge de Temporada Ativa no Dashboard */}
+      <div className="flex items-center justify-between mb-4 pb-2 border-b border-border/40">
+        <div className="flex items-center gap-2">
+          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider bg-emerald-500/10 text-emerald-600 border border-emerald-500/20">
+            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+            Campeonato {season?.year || 2027}
+          </span>
+          <span className="text-xs text-muted-foreground font-medium">
+            Rodada {season?.current_round || 1} de {season?.total_rounds || 24}
+          </span>
+        </div>
+      </div>
+
       {/* ========================================================================= */}
       {/* LINHA 1: HERO EQUIPE + PRÓXIMA CORRIDA                                    */}
       {/* ========================================================================= */}

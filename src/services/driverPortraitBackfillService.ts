@@ -109,8 +109,34 @@ class DriverPortraitBackfillService {
         }
 
         // Determinar gênero a partir do registro
-        const gender =
-          rawProcData.visualIdentity?.gender || rawProcData.gender || record.gender || 'female' // default de fallback feminino se nome/contexto apontar ou masculino documentado
+        const gender = (() => {
+          const nameLower = (record.name || '').toLowerCase()
+          const isKnownMale =
+            record.origin_type === 'real' ||
+            nameLower.includes('verstappen') ||
+            nameLower.includes('hamilton') ||
+            nameLower.includes('norris') ||
+            nameLower.includes('leclerc') ||
+            nameLower.includes('russell') ||
+            nameLower.includes('piastri') ||
+            nameLower.includes('alonso') ||
+            nameLower.includes('sainz') ||
+            nameLower.includes('gasly') ||
+            nameLower.includes('ocon') ||
+            nameLower.includes('tsunoda') ||
+            nameLower.includes('albon') ||
+            nameLower.includes('hulkenberg') ||
+            nameLower.includes('bottas') ||
+            nameLower.includes('stroll') ||
+            nameLower.includes('antonelli') ||
+            nameLower.includes('bearman') ||
+            nameLower.includes('bortoleto') ||
+            nameLower.includes('doohan') ||
+            nameLower.includes('hadjar') ||
+            nameLower.includes('lawson')
+          if (isKnownMale) return 'male'
+          return rawProcData.visualIdentity?.gender || rawProcData.gender || record.gender || 'male'
+        })()
 
         // Obter semente estável (seed original do driverId ou id do registro)
         const stableSeed =

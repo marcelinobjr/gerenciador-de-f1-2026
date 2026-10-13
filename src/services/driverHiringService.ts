@@ -200,7 +200,33 @@ export const driverHiringService = {
           ? initialProcData.visualIdentity.portraitAssetId
           : null)
       if (!existingProfileId) {
-        const gender = initialProcData.visualIdentity?.gender || (driver as any).gender || 'female'
+        const isKnownMale =
+          (driver as any).origin_type === 'real' ||
+          driver.name.toLowerCase().includes('verstappen') ||
+          driver.name.toLowerCase().includes('hamilton') ||
+          driver.name.toLowerCase().includes('norris') ||
+          driver.name.toLowerCase().includes('leclerc') ||
+          driver.name.toLowerCase().includes('russell') ||
+          driver.name.toLowerCase().includes('piastri') ||
+          driver.name.toLowerCase().includes('alonso') ||
+          driver.name.toLowerCase().includes('sainz') ||
+          driver.name.toLowerCase().includes('gasly') ||
+          driver.name.toLowerCase().includes('ocon') ||
+          driver.name.toLowerCase().includes('tsunoda') ||
+          driver.name.toLowerCase().includes('albon') ||
+          driver.name.toLowerCase().includes('hulkenberg') ||
+          driver.name.toLowerCase().includes('bottas') ||
+          driver.name.toLowerCase().includes('stroll') ||
+          driver.name.toLowerCase().includes('antonelli') ||
+          driver.name.toLowerCase().includes('bearman') ||
+          driver.name.toLowerCase().includes('bortoleto') ||
+          driver.name.toLowerCase().includes('doohan') ||
+          driver.name.toLowerCase().includes('hadjar') ||
+          driver.name.toLowerCase().includes('lawson')
+
+        const gender = isKnownMale
+          ? 'male'
+          : initialProcData.visualIdentity?.gender || (driver as any).gender || 'male'
         const seed = initialProcData.driverId || rawProvidedId || driver.name || Date.now()
         const assigned = assignGeneratedPortraitProfile(gender, seed)
         initialProcData = {
