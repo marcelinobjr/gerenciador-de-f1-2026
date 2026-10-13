@@ -307,15 +307,27 @@ export default function IndexPage() {
       })
     }
 
-    list.push({
-      id: 'gp-strategy',
-      priority: 'medium' as const,
-      priorityLabel: 'MÉDIA',
-      title: `Revisar estratégia para o ${currentGP?.name || 'Próximo GP'}`,
-      subtitle: `Alocação de compostos e ritmo de corrida para ${currentGP?.circuit || 'Suzuka'}`,
-      actionLabel: 'Revisar',
-      route: '/corrida',
-    })
+    if (!isSeasonCompletedPendingTransition) {
+      list.push({
+        id: 'gp-strategy',
+        priority: 'medium' as const,
+        priorityLabel: 'MÉDIA',
+        title: `Revisar estratégia para o ${currentGP?.name || 'Próximo GP'}`,
+        subtitle: `Alocação de compostos e ritmo de corrida para ${currentGP?.circuit || 'Suzuka'}`,
+        actionLabel: 'Revisar',
+        route: '/corrida',
+      })
+    } else {
+      list.push({
+        id: 'season-end-transition',
+        priority: 'high' as const,
+        priorityLabel: 'ENCERRAMENTO',
+        title: `Homologação Final da Temporada ${seasonYear}`,
+        subtitle: 'Encerre a temporada para iniciar a próxima e homologar os resultados oficiais.',
+        actionLabel: 'Encerrar',
+        route: '/season-end',
+      })
+    }
 
     list.push({
       id: 'sponsor-offers',
@@ -328,7 +340,7 @@ export default function IndexPage() {
     })
 
     return list
-  }, [pendingDecision, titularDrivers, currentGP])
+  }, [pendingDecision, titularDrivers, currentGP, isSeasonCompletedPendingTransition, seasonYear])
 
   // Notícias do Paddock
   const paddockNews = useMemo(() => {
@@ -743,14 +755,30 @@ export default function IndexPage() {
 
           {/* Botão Principal PREPARAR GP → */}
           <div className="pt-3 mt-3 border-t border-[#F1F5F9]">
-            <Button
-              type="button"
-              onClick={() => navigate('/corrida')}
-              className="w-full bg-[#E10600] hover:bg-[#C50500] text-white font-bold h-11 text-xs uppercase tracking-wider rounded-lg shadow-sm hover:shadow transition-all flex items-center justify-center gap-2 cursor-pointer"
-            >
-              <span>Preparar GP</span>
-              <ChevronRight className="w-4 h-4" />
-            </Button>
+            {isSeasonCompletedPendingTransition ? (
+              <div className="space-y-1.5" title="Encerre a temporada para iniciar a próxima">
+                <Button
+                  type="button"
+                  disabled
+                  className="w-full bg-neutral-300 text-neutral-500 font-bold h-11 text-xs uppercase tracking-wider rounded-lg shadow-none cursor-not-allowed flex items-center justify-center gap-2"
+                >
+                  <span>Preparar GP</span>
+                  <ChevronRight className="w-4 h-4" />
+                </Button>
+                <p className="text-[11px] text-center text-amber-700 font-medium">
+                  Encerre a temporada para iniciar a próxima
+                </p>
+              </div>
+            ) : (
+              <Button
+                type="button"
+                onClick={() => navigate('/corrida')}
+                className="w-full bg-[#E10600] hover:bg-[#C50500] text-white font-bold h-11 text-xs uppercase tracking-wider rounded-lg shadow-sm hover:shadow transition-all flex items-center justify-center gap-2 cursor-pointer"
+              >
+                <span>Preparar GP</span>
+                <ChevronRight className="w-4 h-4" />
+              </Button>
+            )}
           </div>
         </div>
       </section>
