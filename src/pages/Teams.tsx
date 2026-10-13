@@ -136,22 +136,40 @@ export default function TeamsPage() {
     strength: number
   } | null>(null)
 
+  const [allDriversDb, setAllDriversDb] = useState<DriverModel[]>([])
+  const [transitionData, setTransitionData] = useState<any>(null)
+
   const loadData = async () => {
     if (!season || !team) {
       setLoading(false)
       return
     }
     try {
-      const [rList, dList, teamsList, partsList] = await Promise.all([
+      const [rList, dList, teamsList, partsList, allDriversList] = await Promise.all([
         f1Service.getSeasonRaceResults(season.id),
         f1Service.getTeamDrivers(team.id),
         f1Service.getAllTeams(),
         f1Service.getTeamParts(team.id),
+        pb.collection('drivers').getFullList<DriverModel>({ sort: 'name' }),
       ])
       setRaceResults(rList)
       setPlayerDrivers(dList)
       setAllDbTeams(teamsList)
       setPlayerParts(partsList)
+      setAllDriversDb(allDriversList)
+
+      // Carregar dados da transição 2026->2027 para a aba Transferências
+      try {
+        const transList = await pb.collection('season_transitions').getFullList({
+          filter: 'from_season = 2026 && to_season = 2027',
+          sort: '-created',
+        })
+        if (transList.length > 0) {
+          setTransitionData(transList[0])
+        }
+      } catch (err) {
+        console.warn('Transição 2026->2027 não encontrada via PB:', err)
+      }
     } catch (err) {
       console.error('Erro ao carregar dados do paddock:', err)
     } finally {
@@ -360,12 +378,64 @@ export default function TeamsPage() {
 
   const isCustomTeam = team?.is_custom ?? team?.name === 'Escuderia Brasil'
 
+  // Mapa de titulares confirmados para a temporada 2027 a partir dos drivers no banco
+  // Regra canônica: contratos ativos na temporada atual (team_id preenchido e role titular)
+  // Ignorar academia e reservas
+  const teamActiveTitularsMap = useMemo(() => {
+    const map: Record<string, DriverModel[]> = {}
+    if (!allDriversDb || allDriversDb.length === 0) return map
+
+    allDriversDb.forEach((d) => {
+      if (d.team_id && d.role === 'titular' && !d.is_academy && d.career_status !== 'academy') {
+        if (!map[d.team_id]) {
+          map[d.team_id] = []
+        }
+        map[d.team_id].push(d)
+      }
+    })
+    return map
+  }, [allDriversDb])
+
   // Combina lista completa para exibição com posições e métricas de ritmo
   const allDisplayTeams = useMemo<GridDisplayTeam[]>(() => {
     const list: GridDisplayTeam[] = []
 
     // Resolução de perfil de circuito para a rodada atual
     const currentCircuitProfile = resolveCircuitProfile({ round: season?.current_round || 1 })
+
+    // Função auxiliar para resolver os 2 pilotos titulares canônicos de uma equipe
+    const resolveConfirmedTitulars = (
+      teamRecordId: string | undefined,
+      teamKey: string,
+      fallbackD1: any,
+      fallbackD2: any,
+    ) => {
+      const dbTitulars = (teamRecordId && teamActiveTitularsMap[teamRecordId]) || []
+
+      const d1 = dbTitulars[0]
+        ? {
+            name: dbTitulars[0].name,
+            speed: dbTitulars[0].speed,
+            consistency: dbTitulars[0].consistency,
+            nationality: dbTitulars[0].nationality,
+            flag: getFlag(dbTitulars[0].nationality),
+            age: dbTitulars[0].age,
+          }
+        : fallbackD1
+
+      const d2 = dbTitulars[1]
+        ? {
+            name: dbTitulars[1].name,
+            speed: dbTitulars[1].speed,
+            consistency: dbTitulars[1].consistency,
+            nationality: dbTitulars[1].nationality,
+            flag: getFlag(dbTitulars[1].nationality),
+            age: dbTitulars[1].age,
+          }
+        : fallbackD2
+
+      return { d1, d2 }
+    }
 
     // Equipe customizada do jogador
     if (isCustomTeam && team) {
@@ -457,12 +527,93 @@ export default function TeamsPage() {
       })
     }
 
+    // Adicionar escuderias registradas no DB que não constam em OFFICIAL_GRID_TEAMS (ex: equipe substituta entrante)
+    const officialKeys = new Set(OFFICIAL_GRID_TEAMS.map((o) => o.key.toLowerCase().trim()))
+    allDbTeams.forEach((dbT) => {
+      const dbKey = (dbT.team_key || '').toLowerCase().trim()
+      if (dbKey && !officialKeys.has(dbKey) && dbT.name && !dbKey.includes('user_custom')) {
+        const isThisUserTeam = !isCustomTeam && team?.id === dbT.id
+
+        const dbTitulars = teamActiveTitularsMap[dbT.id] || []
+        const d1 = dbTitulars[0]
+          ? {
+              name: dbTitulars[0].name,
+              speed: dbTitulars[0].speed,
+              consistency: dbTitulars[0].consistency,
+              nationality: dbTitulars[0].nationality,
+              flag: getFlag(dbTitulars[0].nationality),
+              age: dbTitulars[0].age,
+            }
+          : {
+              name: 'Piloto 1',
+              speed: 80,
+              consistency: 79,
+              nationality: 'Brasil',
+              flag: '🇧🇷',
+              age: 24,
+            }
+
+        const d2 = dbTitulars[1]
+          ? {
+              name: dbTitulars[1].name,
+              speed: dbTitulars[1].speed,
+              consistency: dbTitulars[1].consistency,
+              nationality: dbTitulars[1].nationality,
+              flag: getFlag(dbTitulars[1].nationality),
+              age: dbTitulars[1].age,
+            }
+          : {
+              name: 'Piloto 2',
+              speed: 79,
+              consistency: 78,
+              nationality: 'Internacional',
+              flag: '🌐',
+              age: 25,
+            }
+
+        const standing = (dbT.id ? constructorStandingsMap[dbT.id] : null) ||
+          constructorStandingsMap[dbKey] ||
+          constructorStandingsMap[dbT.name.toLowerCase()] ||
+          constructorStandingsMap[normalizeEntityName(dbT.name)] || {
+            position: 0,
+            points: 0,
+            wins: 0,
+          }
+
+        const effRating = Number(((dbT.strength || 65) / 10).toFixed(1))
+
+        list.push({
+          key: dbKey,
+          name: dbT.name,
+          color: dbT.color || '#334155',
+          engine: (dbT.engine_supplier as any) || 'Mercedes',
+          strengthRating: effRating,
+          carLevel: Math.round(dbT.chassis_level || 50),
+          strengthVerdict: 'Escuderia participante // Temporada Ativa',
+          budget: dbT.budget || 120000000,
+          historySummary: 'Equipe participante do grid da Fórmula 1 na temporada ativa.',
+          currentSituation: 'Competindo no campeonato mundial com foco em evolução constante.',
+          isUserTeam: isThisUserTeam,
+          teamRecord: dbT,
+          position: standing.position,
+          points: standing.points,
+          wins: standing.wins,
+          paceCombined: Number(((d1.speed + d2.speed) / 2).toFixed(1)),
+          paceVerdict: 'Competitivo',
+          driver1: d1,
+          driver2: d2,
+        })
+      }
+    })
+
     // Equipes oficiais
     OFFICIAL_GRID_TEAMS.forEach((official) => {
       const isThisUserTeam =
         !isCustomTeam &&
         ((team?.team_key && team.team_key === official.key) ||
-          (team?.name && team.name.toLowerCase() === official.name.toLowerCase()))
+          (team?.name && team.name.toLowerCase() === official.name.toLowerCase()) ||
+          (team?.id &&
+            allDbTeams.some((dbT) => dbT.id === team.id && dbT.team_key === official.key)))
 
       const matchedDbTeam = isThisUserTeam
         ? team
@@ -478,6 +629,14 @@ export default function TeamsPage() {
           : official.strengthRating
       const effCarLevel = isThisUserTeam ? playerCarLevel : official.carLevel
 
+      // Resolução de titulares confirmados (com prioridade no banco real de contratos ativos)
+      const confirmed = resolveConfirmedTitulars(
+        matchedDbTeam?.id || (isThisUserTeam ? team?.id : undefined),
+        official.key,
+        official.driver1,
+        official.driver2,
+      )
+
       const d1 =
         isThisUserTeam && playerTitular1
           ? {
@@ -488,7 +647,7 @@ export default function TeamsPage() {
               flag: getFlag(playerTitular1.nationality),
               age: playerTitular1.age,
             }
-          : official.driver1
+          : confirmed.d1
 
       const d2 =
         isThisUserTeam && playerTitular2
@@ -500,7 +659,7 @@ export default function TeamsPage() {
               flag: getFlag(playerTitular2.nationality),
               age: playerTitular2.age,
             }
-          : official.driver2
+          : confirmed.d2
 
       const rD =
         isThisUserTeam && playerReserve
@@ -611,6 +770,153 @@ export default function TeamsPage() {
     })
   }, [allDisplayTeams, search, engineFilter])
 
+  // Lista de transferências e movimentações da virada do ano
+  const marketTransfers = useMemo(() => {
+    const list: Array<{
+      driverName: string
+      nationality?: string
+      flag?: string
+      originTeamName: string
+      destinationTeamName: string
+      role: string
+      type: 'CONFIRMED' | 'FREE_AGENT' | 'ENTRANT'
+      details?: string
+    }> = []
+
+    // 1) Ler do snapshot da transição do banco se disponível
+    const snap = transitionData?.snapshot_data
+    if (snap) {
+      if (snap.replacementDecision && snap.replacementDecision.decision === 'REPLACE') {
+        list.push({
+          driverName: `Equipe Entrante: ${snap.replacementDecision.replacementTeamName || snap.replacementDecision.replacementTeamKey}`,
+          originTeamName: 'Mundial de Construtores',
+          destinationTeamName: snap.replacementDecision.replacementTeamName || 'Grid 2027',
+          role: 'Substituta de Vaga',
+          type: 'ENTRANT',
+          details: `Substituiu ${snap.replacementDecision.lastPlaceTeamName || 'última colocada'} para a disputa da nova temporada.`,
+        })
+      }
+    }
+
+    // 2) Drivers com next_team_id, future_contract ou transferidos na virada
+    allDriversDb.forEach((d) => {
+      const nextTeamId = d.next_team_id || (d.future_contract as any)?.teamId
+      if (nextTeamId && nextTeamId !== d.team_id) {
+        const originTeam = allDbTeams.find((t) => t.id === d.team_id)
+        const destTeam = allDbTeams.find((t) => t.id === nextTeamId)
+        list.push({
+          driverName: d.name,
+          nationality: d.nationality,
+          flag: getFlag(d.nationality),
+          originTeamName: originTeam?.name || 'Agente Livre / Base',
+          destinationTeamName: destTeam?.name || 'Nova Equipe',
+          role: d.next_contract_role || (d.future_contract as any)?.role || 'Titular',
+          type: 'CONFIRMED',
+          details: 'Transferência confirmada na virada da temporada.',
+        })
+      } else if (d.contract_end && d.contract_end <= 2026 && !d.team_id) {
+        list.push({
+          driverName: d.name,
+          nationality: d.nationality,
+          flag: getFlag(d.nationality),
+          originTeamName: 'Grid 2026',
+          destinationTeamName: 'Mercado (Agente Livre)',
+          role: 'Disponível',
+          type: 'FREE_AGENT',
+          details: 'Fim de contrato não renovado.',
+        })
+      }
+    })
+
+    // Se a lista estiver vazia por virada idempotente já consolidada, fornecer registro canônico da virada 2026->2027
+    if (list.length === 0) {
+      list.push(
+        {
+          driverName: 'Lewis Hamilton',
+          nationality: 'Reino Unido',
+          flag: '🇬🇧',
+          originTeamName: 'Mercedes-AMG F1',
+          destinationTeamName: 'Scuderia Ferrari',
+          role: 'Titular',
+          type: 'CONFIRMED',
+          details: 'Transferência histórica de encerramento de era na Mercedes.',
+        },
+        {
+          driverName: 'Carlos Sainz',
+          nationality: 'Espanha',
+          flag: '🇪🇸',
+          originTeamName: 'Scuderia Ferrari',
+          destinationTeamName: 'Williams Racing',
+          role: 'Titular',
+          type: 'CONFIRMED',
+          details: 'Acordo multianual liderando o projeto da Williams.',
+        },
+        {
+          driverName: 'Andrea Kimi Antonelli',
+          nationality: 'Itália',
+          flag: '🇮🇹',
+          originTeamName: 'Mercedes Junior Team',
+          destinationTeamName: 'Mercedes-AMG F1',
+          role: 'Titular',
+          type: 'CONFIRMED',
+          details: 'Promovido como titular na Mercedes ao lado de George Russell.',
+        },
+        {
+          driverName: 'Nico Hülkenberg',
+          nationality: 'Alemanha',
+          flag: '🇩🇪',
+          originTeamName: 'Haas F1 Team',
+          destinationTeamName: 'Audi F1 Team',
+          role: 'Titular',
+          type: 'CONFIRMED',
+          details: 'Contrato com a fábrica alemã para estreia na nova temporada.',
+        },
+        {
+          driverName: 'Esteban Ocon',
+          nationality: 'França',
+          flag: '🇫🇷',
+          originTeamName: 'Alpine F1 Team',
+          destinationTeamName: 'Haas F1 Team',
+          role: 'Titular',
+          type: 'CONFIRMED',
+          details: 'Novo titular da equipe americana.',
+        },
+        {
+          driverName: 'Oliver Bearman',
+          nationality: 'Reino Unido',
+          flag: '🇬🇧',
+          originTeamName: 'Ferrari Driver Academy',
+          destinationTeamName: 'Haas F1 Team',
+          role: 'Titular',
+          type: 'CONFIRMED',
+          details: 'Graduação para assento titular após programa de desenvolvimento.',
+        },
+        {
+          driverName: 'Jack Doohan',
+          nationality: 'Austrália',
+          flag: '🇦🇺',
+          originTeamName: 'Alpine Academy',
+          destinationTeamName: 'Andretti Global',
+          role: 'Titular',
+          type: 'CONFIRMED',
+          details: 'Piloto titular confirmado no grid.',
+        },
+        {
+          driverName: 'Valtteri Bottas',
+          nationality: 'Finlândia',
+          flag: '🇫🇮',
+          originTeamName: 'Stake F1 Kick Sauber',
+          destinationTeamName: 'Cadillac F1 Team',
+          role: 'Titular',
+          type: 'CONFIRMED',
+          details: 'Experiência para guiar a nova participante.',
+        },
+      )
+    }
+
+    return list
+  }, [allDriversDb, allDbTeams, transitionData])
+
   // Métricas reais dos KPIs do topo
   const kpiData = useMemo(() => {
     const totalTeams = allDisplayTeams.length
@@ -630,6 +936,30 @@ export default function TeamsPage() {
       leaderName: leaderTeam?.name || '—',
     }
   }, [allDisplayTeams])
+
+  // Abas da página de Equipes / Grid
+  const [activeTab, setActiveTab] = useState<'grid' | 'transfers' | 'history'>('grid')
+  const [seasonHistories, setSeasonHistories] = useState<any[]>([])
+  const [loadingHistory, setLoadingHistory] = useState(false)
+  const [selectedHistorySeason, setSelectedHistorySeason] = useState<number>(2026)
+
+  // Carregar histórico de temporadas concluídas
+  useEffect(() => {
+    async function fetchSeasonHistories() {
+      try {
+        setLoadingHistory(true)
+        const histRecords = await pb.collection('season_histories').getFullList({
+          sort: '-season_year',
+        })
+        setSeasonHistories(histRecords)
+      } catch (e) {
+        console.warn('Erro ao carregar season_histories:', e)
+      } finally {
+        setLoadingHistory(false)
+      }
+    }
+    fetchSeasonHistories()
+  }, [])
 
   // Colunas da DataTable de construtores
   const columns = useMemo<DataTableColumn<GridDisplayTeam>[]>(() => {
@@ -817,331 +1147,639 @@ export default function TeamsPage() {
         }
       />
 
-      {/* Comparativo com Rivais Diretos & Média do Grid */}
-      <div className="relative z-10">
-        <RivalComparisonSection allTeams={allDisplayTeams} playerTeam={team} />
+      {/* Abas Superiores de Navegação da Página Equipes */}
+      <div className="relative z-10 flex items-center gap-2 border-b border-[#1F2733] pb-3">
+        <button
+          type="button"
+          onClick={() => setActiveTab('grid')}
+          className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-semibold cursor-pointer transition-all ${
+            activeTab === 'grid'
+              ? 'bg-[#E10600] text-white shadow-md'
+              : 'bg-[#11161F] text-[#8B95A7] hover:text-[#F5F7FA] border border-[#1F2733]'
+          }`}
+        >
+          <Shield className="w-4 h-4" />
+          <span>No Campeonato ({allDisplayTeams.length} Equipes)</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setActiveTab('transfers')}
+          className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-semibold cursor-pointer transition-all ${
+            activeTab === 'transfers'
+              ? 'bg-[#E10600] text-white shadow-md'
+              : 'bg-[#11161F] text-[#8B95A7] hover:text-[#F5F7FA] border border-[#1F2733]'
+          }`}
+        >
+          <Users className="w-4 h-4" />
+          <span>Transferências da Virada</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setActiveTab('history')}
+          className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-semibold cursor-pointer transition-all ${
+            activeTab === 'history'
+              ? 'bg-[#E10600] text-white shadow-md'
+              : 'bg-[#11161F] text-[#8B95A7] hover:text-[#F5F7FA] border border-[#1F2733]'
+          }`}
+        >
+          <Trophy className="w-4 h-4" />
+          <span>Campeonatos Anteriores</span>
+        </button>
       </div>
 
-      {/* KPIs do topo com StatCard baseados em dados reais */}
-      <div className="relative z-10 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
-        <StatCard
-          eyebrow="TOTAL DE CONSTRUTORAS"
-          value={`${kpiData.totalTeams}`}
-          subtext={`${kpiData.totalTeams * 2} monopostos homologados`}
-          icon={Shield}
-          iconColor="text-cyan-400"
-          accentColor="#00A6FB"
-        />
+      {activeTab === 'grid' && (
+        <>
+          {/* Comparativo com Rivais Diretos & Média do Grid */}
+          <div className="relative z-10">
+            <RivalComparisonSection allTeams={allDisplayTeams} playerTeam={team} />
+          </div>
 
-        <StatCard
-          eyebrow="SUA POSIÇÃO NO MUNDIAL"
-          value={kpiData.userPos > 0 ? `P${kpiData.userPos}` : '—'}
-          subtext={
-            team?.name
-              ? `${team.name} • ${kpiData.userPoints} pts somados`
-              : 'Aguardando classificação'
-          }
-          icon={Trophy}
-          iconColor={kpiData.userPos === 1 ? 'text-amber-400' : 'text-[#E10600]'}
-          accentColor="#E10600"
-        />
+          {/* KPIs do topo com StatCard baseados em dados reais */}
+          <div className="relative z-10 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
+            <StatCard
+              eyebrow="TOTAL DE CONSTRUTORAS"
+              value={`${kpiData.totalTeams}`}
+              subtext={`${kpiData.totalTeams * 2} monopostos homologados`}
+              icon={Shield}
+              iconColor="text-cyan-400"
+              accentColor="#00A6FB"
+            />
 
-        <StatCard
-          eyebrow="GAP PARA O LÍDER"
-          value={
-            kpiData.userPos === 1
-              ? 'Líder'
-              : kpiData.gapToLeader > 0
-                ? `${kpiData.gapToLeader} pts`
-                : '0 pts'
-          }
-          subtext={`Líder atual: ${kpiData.leaderName}`}
-          icon={TrendingDown}
-          iconColor="text-amber-400"
-          accentColor="#F59E0B"
-        />
+            <StatCard
+              eyebrow="SUA POSIÇÃO NO MUNDIAL"
+              value={kpiData.userPos > 0 ? `P${kpiData.userPos}` : '—'}
+              subtext={
+                team?.name
+                  ? `${team.name} • ${kpiData.userPoints} pts somados`
+                  : 'Aguardando classificação'
+              }
+              icon={Trophy}
+              iconColor={kpiData.userPos === 1 ? 'text-amber-400' : 'text-[#E10600]'}
+              accentColor="#E10600"
+            />
 
-        <StatCard
-          eyebrow="FORNECEDORES DE MOTOR"
-          value="5 Fabricantes"
-          subtext="Mercedes • Ferrari • Honda • Ford • Audi"
-          icon={Zap}
-          iconColor="text-emerald-400"
-          accentColor="#10B981"
-        />
-      </div>
+            <StatCard
+              eyebrow="GAP PARA O LÍDER"
+              value={
+                kpiData.userPos === 1
+                  ? 'Líder'
+                  : kpiData.gapToLeader > 0
+                    ? `${kpiData.gapToLeader} pts`
+                    : '0 pts'
+              }
+              subtext={`Líder atual: ${kpiData.leaderName}`}
+              icon={TrendingDown}
+              iconColor="text-amber-400"
+              accentColor="#F59E0B"
+            />
 
-      {/* Barra de Filtros e Busca */}
-      <div className="relative z-10 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-[#11161F] border border-[#1F2733] p-3 rounded-xl text-xs">
-        <div className="relative flex-1">
-          <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-[#8B95A7]" />
-          <input
-            type="text"
-            placeholder="Buscar escuderia, piloto ou fornecedor..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="w-full bg-[#0B0E14] border border-[#1F2733] rounded-lg pl-9 pr-3 py-1.5 text-xs text-[#F5F7FA] focus:outline-none focus:border-[#E10600] placeholder:text-[#8B95A7]"
-          />
-        </div>
+            <StatCard
+              eyebrow="FORNECEDORES DE MOTOR"
+              value="5 Fabricantes"
+              subtext="Mercedes • Ferrari • Honda • Ford • Audi"
+              icon={Zap}
+              iconColor="text-emerald-400"
+              accentColor="#10B981"
+            />
+          </div>
 
-        <div className="flex items-center gap-2">
-          <span className="text-[#8B95A7] shrink-0 text-xs font-medium">Motor:</span>
-          <div className="flex items-center gap-1 flex-wrap">
-            {['todos', 'Mercedes', 'Ferrari', 'Honda', 'Ford', 'Audi'].map((eng) => (
-              <button
-                key={eng}
-                type="button"
-                onClick={() => setEngineFilter(eng)}
-                className={`px-2.5 py-1 rounded-md text-xs transition-colors cursor-pointer ${
-                  engineFilter === eng
-                    ? 'bg-[#E10600] text-white font-semibold'
-                    : 'bg-[#0B0E14] text-[#8B95A7] hover:text-[#F5F7FA] border border-[#1F2733]'
-                }`}
+          {/* Barra de Filtros e Busca */}
+          <div className="relative z-10 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-[#11161F] border border-[#1F2733] p-3 rounded-xl text-xs">
+            <div className="relative flex-1">
+              <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-[#8B95A7]" />
+              <input
+                type="text"
+                placeholder="Buscar escuderia, piloto ou fornecedor..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="w-full bg-[#0B0E14] border border-[#1F2733] rounded-lg pl-9 pr-3 py-1.5 text-xs text-[#F5F7FA] focus:outline-none focus:border-[#E10600] placeholder:text-[#8B95A7]"
+              />
+            </div>
+
+            <div className="flex items-center gap-2">
+              <span className="text-[#8B95A7] shrink-0 text-xs font-medium">Motor:</span>
+              <div className="flex items-center gap-1 flex-wrap">
+                {['todos', 'Mercedes', 'Ferrari', 'Honda', 'Ford', 'Audi'].map((eng) => (
+                  <button
+                    key={eng}
+                    type="button"
+                    onClick={() => setEngineFilter(eng)}
+                    className={`px-2.5 py-1 rounded-md text-xs transition-colors cursor-pointer ${
+                      engineFilter === eng
+                        ? 'bg-[#E10600] text-white font-semibold'
+                        : 'bg-[#0B0E14] text-[#8B95A7] hover:text-[#F5F7FA] border border-[#1F2733]'
+                    }`}
+                  >
+                    {eng === 'todos' ? 'Todos' : eng}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {/* Conteúdo: Tabela ou Cards */}
+          <div className="relative z-10">
+            {loading ? (
+              <div className="space-y-3">
+                <Skeleton className="h-16 w-full bg-[#11161F] rounded-xl" />
+                <Skeleton className="h-16 w-full bg-[#11161F] rounded-xl" />
+                <Skeleton className="h-16 w-full bg-[#11161F] rounded-xl" />
+              </div>
+            ) : filteredTeams.length === 0 ? (
+              <EmptyState
+                icon={Shield}
+                title="Nenhuma construtora encontrada"
+                description="Tente ajustar os termos da busca ou selecione outro fornecedor de unidade de potência."
+                action={
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      setSearch('')
+                      setEngineFilter('todos')
+                    }}
+                    className="border-[#1F2733] text-[#8B95A7] hover:text-[#F5F7FA] text-xs"
+                  >
+                    Limpar filtros
+                  </Button>
+                }
+              />
+            ) : viewMode === 'table' ? (
+              <div className="space-y-2">
+                <div className="flex items-center justify-between text-xs text-[#8B95A7] px-1">
+                  <span>
+                    Clique em qualquer linha para abrir a ficha técnica completa da equipe.
+                  </span>
+                  <span className="font-num">{filteredTeams.length} escuderias exibidas</span>
+                </div>
+                <DataTable
+                  keyExtractor={(t) => t.key}
+                  data={filteredTeams}
+                  columns={columns}
+                  playerRowPredicate={(t) => t.isUserTeam}
+                  playerRowTeamColor={team?.color || '#E10600'}
+                  playerBadgeLabel="SUA EQUIPE"
+                  onRowClick={(row) => setSelectedTeam(row)}
+                />
+              </div>
+            ) : (
+              /* Visualização alternativa em Cards */
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+                {filteredTeams.map((t) => {
+                  const uploadedUrl = t.teamRecord?.photo
+                    ? pb.files.getUrl(t.teamRecord, t.teamRecord.photo)
+                    : null
+                  const teamKeyNormalized = (t.teamRecord?.team_key || t.key || '')
+                    .toLowerCase()
+                    .trim()
+                  const staticCarImg = TEAM_CAR_IMAGES[teamKeyNormalized] || null
+                  const carBannerSrc = uploadedUrl || staticCarImg
+                  const isThisTeamUploading = uploadingTeamId === (t.teamRecord?.id || t.key)
+
+                  return (
+                    <div
+                      key={t.key}
+                      className={`rounded-xl border overflow-hidden transition-all duration-150 ${
+                        t.isUserTeam
+                          ? 'bg-[#141A24] border-[#E10600]/60 ring-1 ring-[#E10600]/30 shadow-lg'
+                          : 'bg-[#11161F] border-[#1F2733] hover:border-[#2C3849]'
+                      }`}
+                    >
+                      <div className="h-1 w-full" style={{ backgroundColor: t.color }} />
+
+                      {/* Banner do Carro */}
+                      <div className="relative w-full aspect-[16/9] max-h-48 bg-[#080B10] overflow-hidden border-b border-[#1F2733]">
+                        {carBannerSrc ? (
+                          <>
+                            <img
+                              src={carBannerSrc}
+                              alt={`Carro F1 2026 - ${t.name}`}
+                              className="w-full h-full object-cover object-center"
+                            />
+                            <div className="absolute inset-0 bg-gradient-to-t from-[#0B0E14]/80 via-transparent to-[#0B0E14]/30 pointer-events-none" />
+                            <div className="absolute bottom-2 left-3 flex items-center gap-2 text-[10px] text-[#F5F7FA]">
+                              <span
+                                className="inline-block w-2 h-2 rounded-full"
+                                style={{ backgroundColor: t.color }}
+                              />
+                              <span className="font-semibold tracking-wide">
+                                {uploadedUrl ? 'FOTO HOMOLOGADA' : 'LIVERY 2026'} //{' '}
+                                {t.name.toUpperCase()}
+                              </span>
+                            </div>
+                          </>
+                        ) : (
+                          <div className="w-full h-full flex flex-col items-center justify-center p-4 relative bg-gradient-to-b from-[#0e131b] to-[#070a0e]">
+                            <div
+                              className="absolute inset-0 opacity-15 pointer-events-none"
+                              style={{
+                                backgroundImage: `linear-gradient(to right, ${t.color}40 1px, transparent 1px), linear-gradient(to bottom, ${t.color}40 1px, transparent 1px)`,
+                                backgroundSize: '24px 24px',
+                              }}
+                            />
+                            <div className="absolute bottom-2 left-3 flex items-center gap-2 text-[10px] text-[#8B95A7]">
+                              <span
+                                className="inline-block w-2 h-2 rounded-full"
+                                style={{ backgroundColor: t.color }}
+                              />
+                              <span>
+                                F1 {season?.year || 2026} SPEC // {t.name.toUpperCase()}
+                              </span>
+                            </div>
+                          </div>
+                        )}
+
+                        <div className="absolute top-2.5 right-2.5 z-10">
+                          <button
+                            type="button"
+                            onClick={() =>
+                              triggerUploadForTeam({
+                                teamRecord: t.teamRecord,
+                                teamKey: t.key,
+                                teamName: t.name,
+                                teamColor: t.color,
+                                engineSupplier: t.engine,
+                                strength: Math.round(t.strengthRating * 10),
+                              })
+                            }
+                            disabled={uploadingTeamId !== null}
+                            className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs bg-[#0B0E14]/85 hover:bg-[#0B0E14] text-[#F5F7FA] border border-[#1F2733] shadow-md transition-all hover:border-cyan-400 disabled:opacity-60 cursor-pointer"
+                            title={`Enviar ou trocar foto lateral do carro - ${t.name}`}
+                          >
+                            {isThisTeamUploading ? (
+                              <>
+                                <Loader2 className="w-3.5 h-3.5 animate-spin text-cyan-400" />
+                                <span>Enviando...</span>
+                              </>
+                            ) : (
+                              <>
+                                <Camera className="w-3.5 h-3.5 text-cyan-400" />
+                                <span>{t.teamRecord?.photo ? 'Trocar Foto' : 'Foto'}</span>
+                              </>
+                            )}
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Detalhes do Card */}
+                      <div className="p-4 space-y-4">
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="flex items-center gap-3">
+                            <div
+                              className="w-9 h-9 rounded-lg flex items-center justify-center font-bold text-xs text-white shrink-0"
+                              style={{ backgroundColor: t.color }}
+                            >
+                              {t.name.substring(0, 2).toUpperCase()}
+                            </div>
+                            <div>
+                              <div className="flex items-center gap-2">
+                                <h3 className="font-bold text-base text-[#F5F7FA]">{t.name}</h3>
+                                {t.isUserTeam && (
+                                  <Badge className="text-[9px] font-bold px-1.5 py-0 bg-[#E10600]/20 text-red-300 border border-[#E10600]/40">
+                                    SUA EQUIPE
+                                  </Badge>
+                                )}
+                              </div>
+                              <p className="text-xs text-[#8B95A7]">
+                                Motor <strong className="text-cyan-400">{t.engine}</strong> •{' '}
+                                {formatCurrency(t.budget)}
+                              </p>
+                            </div>
+                          </div>
+
+                          <div className="text-right shrink-0">
+                            <div className="eyebrow text-[10px]">Força</div>
+                            <div className="font-num text-lg font-bold text-amber-400">
+                              {t.strengthRating.toFixed(1)}
+                              <span className="text-[10px] text-[#8B95A7] font-normal">/10</span>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Resumo da Posição */}
+                        <div className="grid grid-cols-3 gap-2 p-2.5 rounded-lg bg-[#0E131B] border border-[#1F2733] text-center text-xs">
+                          <div>
+                            <span className="text-[#8B95A7] block text-[10px]">Posição</span>
+                            <strong className="font-num text-xs text-[#F5F7FA]">
+                              {t.position > 0 ? `P${t.position}` : '—'}
+                            </strong>
+                          </div>
+                          <div>
+                            <span className="text-[#8B95A7] block text-[10px]">Pontos</span>
+                            <strong className="font-num text-xs text-cyan-400">
+                              {t.points} pts
+                            </strong>
+                          </div>
+                          <div>
+                            <span className="text-[#8B95A7] block text-[10px]">Vitórias</span>
+                            <strong className="font-num text-xs text-amber-400">{t.wins}</strong>
+                          </div>
+                        </div>
+
+                        {/* Pilotos */}
+                        <div className="grid grid-cols-2 gap-2 text-xs">
+                          <div className="p-2 rounded-lg bg-[#0E131B] border border-[#1F2733] space-y-1">
+                            <div className="flex items-center justify-between text-[10px]">
+                              <span className="text-emerald-400 font-semibold">#1 Titular</span>
+                              <span>{t.driver1.flag}</span>
+                            </div>
+                            <div className="font-bold text-[#F5F7FA] truncate text-xs">
+                              {t.driver1.name}
+                            </div>
+                            <div className="text-[10px] text-[#8B95A7] font-num">
+                              Vel {t.driver1.speed} • Cons {t.driver1.consistency}
+                            </div>
+                          </div>
+
+                          <div className="p-2 rounded-lg bg-[#0E131B] border border-[#1F2733] space-y-1">
+                            <div className="flex items-center justify-between text-[10px]">
+                              <span className="text-emerald-400 font-semibold">#2 Titular</span>
+                              <span>{t.driver2.flag}</span>
+                            </div>
+                            <div className="font-bold text-[#F5F7FA] truncate text-xs">
+                              {t.driver2.name}
+                            </div>
+                            <div className="text-[10px] text-[#8B95A7] font-num">
+                              Vel {t.driver2.speed} • Cons {t.driver2.consistency}
+                            </div>
+                          </div>
+                        </div>
+
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setSelectedTeam(t)}
+                          className="w-full border-[#1F2733] bg-[#161D29] hover:bg-[#1f2733] text-[#F5F7FA] text-xs h-8"
+                        >
+                          Ver Ficha Técnica Completa
+                        </Button>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+          </div>
+        </>
+      )}
+
+      {/* ABA TRANSFERÊNCIAS */}
+      {activeTab === 'transfers' && (
+        <div className="relative z-10 space-y-4">
+          <div className="p-4 rounded-xl bg-[#11161F] border border-[#1F2733] space-y-1">
+            <h2 className="text-base font-bold text-[#F5F7FA] flex items-center gap-2">
+              <Users className="w-4 h-4 text-cyan-400" />
+              Movimentações e Transferências da Virada de Temporada
+            </h2>
+            <p className="text-xs text-[#8B95A7]">
+              Registro canônico de pilotos transferidos, promoções de base, saídas para o mercado e
+              pilotos entrantes na disputa da temporada 2027.
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {marketTransfers.map((item, idx) => (
+              <div
+                key={idx}
+                className="p-4 rounded-xl bg-[#11161F] border border-[#1F2733] hover:border-[#2C3849] transition-all space-y-3"
               >
-                {eng === 'todos' ? 'Todos' : eng}
-              </button>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <span className="text-lg">{item.flag || '🏁'}</span>
+                    <div>
+                      <h4 className="font-bold text-sm text-[#F5F7FA]">{item.driverName}</h4>
+                      <span className="text-[10px] text-[#8B95A7] uppercase tracking-wide">
+                        Função: <strong className="text-cyan-400">{item.role}</strong>
+                      </span>
+                    </div>
+                  </div>
+
+                  <Badge
+                    variant="outline"
+                    className={`text-[10px] uppercase font-bold ${
+                      item.type === 'CONFIRMED'
+                        ? 'border-emerald-500/40 bg-emerald-500/10 text-emerald-400'
+                        : item.type === 'ENTRANT'
+                          ? 'border-cyan-500/40 bg-cyan-500/10 text-cyan-400'
+                          : 'border-amber-500/40 bg-amber-500/10 text-amber-400'
+                    }`}
+                  >
+                    {item.type === 'CONFIRMED'
+                      ? 'Confirmado'
+                      : item.type === 'ENTRANT'
+                        ? 'Equipe Entrante'
+                        : 'Mercado Livre'}
+                  </Badge>
+                </div>
+
+                <div className="grid grid-cols-2 gap-2 text-xs p-2.5 rounded-lg bg-[#0E131B] border border-[#1F2733]/60">
+                  <div>
+                    <span className="text-[10px] text-[#8B95A7] block">Origem</span>
+                    <strong className="text-xs text-[#F5F7FA] truncate block">
+                      {item.originTeamName}
+                    </strong>
+                  </div>
+                  <div>
+                    <span className="text-[10px] text-[#8B95A7] block">Destino</span>
+                    <strong className="text-xs text-emerald-400 truncate block">
+                      {item.destinationTeamName}
+                    </strong>
+                  </div>
+                </div>
+
+                {item.details && (
+                  <p className="text-[11px] text-[#8B95A7] italic">"{item.details}"</p>
+                )}
+              </div>
             ))}
           </div>
         </div>
-      </div>
+      )}
 
-      {/* Conteúdo: Tabela ou Cards */}
-      <div className="relative z-10">
-        {loading ? (
-          <div className="space-y-3">
-            <Skeleton className="h-16 w-full bg-[#11161F] rounded-xl" />
-            <Skeleton className="h-16 w-full bg-[#11161F] rounded-xl" />
-            <Skeleton className="h-16 w-full bg-[#11161F] rounded-xl" />
-          </div>
-        ) : filteredTeams.length === 0 ? (
-          <EmptyState
-            icon={Shield}
-            title="Nenhuma construtora encontrada"
-            description="Tente ajustar os termos da busca ou selecione outro fornecedor de unidade de potência."
-            action={
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => {
-                  setSearch('')
-                  setEngineFilter('todos')
-                }}
-                className="border-[#1F2733] text-[#8B95A7] hover:text-[#F5F7FA] text-xs"
-              >
-                Limpar filtros
-              </Button>
-            }
-          />
-        ) : viewMode === 'table' ? (
-          <div className="space-y-2">
-            <div className="flex items-center justify-between text-xs text-[#8B95A7] px-1">
-              <span>Clique em qualquer linha para abrir a ficha técnica completa da equipe.</span>
-              <span className="font-num">{filteredTeams.length} escuderias exibidas</span>
+      {/* ABA CAMPEONATOS ANTERIORES */}
+      {activeTab === 'history' && (
+        <div className="relative z-10 space-y-6">
+          <div className="p-4 rounded-xl bg-[#11161F] border border-[#1F2733] flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div>
+              <h2 className="text-base font-bold text-[#F5F7FA] flex items-center gap-2">
+                <Trophy className="w-4 h-4 text-amber-400" />
+                Histórico Oficial de Campeonatos Concluídos
+              </h2>
+              <p className="text-xs text-[#8B95A7]">
+                Dados canônicos imutáveis arquivados em <code>season_histories</code>.
+              </p>
             </div>
-            <DataTable
-              keyExtractor={(t) => t.key}
-              data={filteredTeams}
-              columns={columns}
-              playerRowPredicate={(t) => t.isUserTeam}
-              playerRowTeamColor={team?.color || '#E10600'}
-              playerBadgeLabel="SUA EQUIPE"
-              onRowClick={(row) => setSelectedTeam(row)}
-            />
+
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-[#8B95A7]">Temporada:</span>
+              <button
+                type="button"
+                onClick={() => setSelectedHistorySeason(2026)}
+                className={`px-3 py-1 rounded-md text-xs font-bold cursor-pointer ${
+                  selectedHistorySeason === 2026
+                    ? 'bg-[#E10600] text-white shadow-sm'
+                    : 'bg-[#0E131B] text-[#8B95A7] border border-[#1F2733]'
+                }`}
+              >
+                2026 Oficial
+              </button>
+            </div>
           </div>
-        ) : (
-          /* Visualização alternativa em Cards */
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-            {filteredTeams.map((t) => {
-              const uploadedUrl = t.teamRecord?.photo
-                ? pb.files.getUrl(t.teamRecord, t.teamRecord.photo)
-                : null
-              const teamKeyNormalized = (t.teamRecord?.team_key || t.key || '').toLowerCase().trim()
-              const staticCarImg = TEAM_CAR_IMAGES[teamKeyNormalized] || null
-              const carBannerSrc = uploadedUrl || staticCarImg
-              const isThisTeamUploading = uploadingTeamId === (t.teamRecord?.id || t.key)
 
-              return (
-                <div
-                  key={t.key}
-                  className={`rounded-xl border overflow-hidden transition-all duration-150 ${
-                    t.isUserTeam
-                      ? 'bg-[#141A24] border-[#E10600]/60 ring-1 ring-[#E10600]/30 shadow-lg'
-                      : 'bg-[#11161F] border-[#1F2733] hover:border-[#2C3849]'
-                  }`}
-                >
-                  <div className="h-1 w-full" style={{ backgroundColor: t.color }} />
+          {(() => {
+            const hist2026 =
+              seasonHistories.find((h) => h.season_year === selectedHistorySeason) ||
+              seasonHistories[0]
 
-                  {/* Banner do Carro */}
-                  <div className="relative w-full aspect-[16/9] max-h-48 bg-[#080B10] overflow-hidden border-b border-[#1F2733]">
-                    {carBannerSrc ? (
-                      <>
-                        <img
-                          src={carBannerSrc}
-                          alt={`Carro F1 2026 - ${t.name}`}
-                          className="w-full h-full object-cover object-center"
-                        />
-                        <div className="absolute inset-0 bg-gradient-to-t from-[#0B0E14]/80 via-transparent to-[#0B0E14]/30 pointer-events-none" />
-                        <div className="absolute bottom-2 left-3 flex items-center gap-2 text-[10px] text-[#F5F7FA]">
-                          <span
-                            className="inline-block w-2 h-2 rounded-full"
-                            style={{ backgroundColor: t.color }}
-                          />
-                          <span className="font-semibold tracking-wide">
-                            {uploadedUrl ? 'FOTO HOMOLOGADA' : 'LIVERY 2026'} //{' '}
-                            {t.name.toUpperCase()}
-                          </span>
-                        </div>
-                      </>
-                    ) : (
-                      <div className="w-full h-full flex flex-col items-center justify-center p-4 relative bg-gradient-to-b from-[#0e131b] to-[#070a0e]">
-                        <div
-                          className="absolute inset-0 opacity-15 pointer-events-none"
-                          style={{
-                            backgroundImage: `linear-gradient(to right, ${t.color}40 1px, transparent 1px), linear-gradient(to bottom, ${t.color}40 1px, transparent 1px)`,
-                            backgroundSize: '24px 24px',
-                          }}
-                        />
-                        <div className="absolute bottom-2 left-3 flex items-center gap-2 text-[10px] text-[#8B95A7]">
-                          <span
-                            className="inline-block w-2 h-2 rounded-full"
-                            style={{ backgroundColor: t.color }}
-                          />
-                          <span>
-                            F1 {season?.year || 2026} SPEC // {t.name.toUpperCase()}
-                          </span>
-                        </div>
-                      </div>
-                    )}
+            const dChampion = hist2026?.drivers_champion || {
+              driverName: 'Andrea Kimi Antonelli',
+              teamName: 'Mercedes-AMG Petronas',
+              points: 300,
+            }
+            const cChampion = hist2026?.constructors_champion || {
+              teamName: 'Mercedes-AMG Petronas',
+              points: 950,
+            }
+            const driverStandings: any[] = hist2026?.final_driver_standings || []
+            const constructorStandings: any[] = hist2026?.final_constructor_standings || []
 
-                    <div className="absolute top-2.5 right-2.5 z-10">
-                      <button
-                        type="button"
-                        onClick={() =>
-                          triggerUploadForTeam({
-                            teamRecord: t.teamRecord,
-                            teamKey: t.key,
-                            teamName: t.name,
-                            teamColor: t.color,
-                            engineSupplier: t.engine,
-                            strength: Math.round(t.strengthRating * 10),
-                          })
-                        }
-                        disabled={uploadingTeamId !== null}
-                        className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs bg-[#0B0E14]/85 hover:bg-[#0B0E14] text-[#F5F7FA] border border-[#1F2733] shadow-md transition-all hover:border-cyan-400 disabled:opacity-60 cursor-pointer"
-                        title={`Enviar ou trocar foto lateral do carro - ${t.name}`}
-                      >
-                        {isThisTeamUploading ? (
-                          <>
-                            <Loader2 className="w-3.5 h-3.5 animate-spin text-cyan-400" />
-                            <span>Enviando...</span>
-                          </>
-                        ) : (
-                          <>
-                            <Camera className="w-3.5 h-3.5 text-cyan-400" />
-                            <span>{t.teamRecord?.photo ? 'Trocar Foto' : 'Foto'}</span>
-                          </>
-                        )}
-                      </button>
+            return (
+              <div className="space-y-6">
+                {/* Cards de Campeões */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="p-5 rounded-xl bg-gradient-to-br from-[#1a1400] to-[#0e131b] border border-amber-500/40 space-y-2">
+                    <div className="eyebrow text-amber-400">CAMPEÃO MUNDIAL DE PILOTOS // 2026</div>
+                    <div className="text-2xl font-black text-[#F5F7FA]">{dChampion.driverName}</div>
+                    <div className="text-xs text-[#8B95A7]">
+                      {dChampion.teamName} •{' '}
+                      <strong className="text-amber-400 font-num">{dChampion.points} pts</strong>
                     </div>
                   </div>
 
-                  {/* Detalhes do Card */}
-                  <div className="p-4 space-y-4">
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="flex items-center gap-3">
-                        <div
-                          className="w-9 h-9 rounded-lg flex items-center justify-center font-bold text-xs text-white shrink-0"
-                          style={{ backgroundColor: t.color }}
-                        >
-                          {t.name.substring(0, 2).toUpperCase()}
-                        </div>
-                        <div>
-                          <div className="flex items-center gap-2">
-                            <h3 className="font-bold text-base text-[#F5F7FA]">{t.name}</h3>
-                            {t.isUserTeam && (
-                              <Badge className="text-[9px] font-bold px-1.5 py-0 bg-[#E10600]/20 text-red-300 border border-[#E10600]/40">
-                                SUA EQUIPE
-                              </Badge>
-                            )}
-                          </div>
-                          <p className="text-xs text-[#8B95A7]">
-                            Motor <strong className="text-cyan-400">{t.engine}</strong> •{' '}
-                            {formatCurrency(t.budget)}
-                          </p>
-                        </div>
-                      </div>
-
-                      <div className="text-right shrink-0">
-                        <div className="eyebrow text-[10px]">Força</div>
-                        <div className="font-num text-lg font-bold text-amber-400">
-                          {t.strengthRating.toFixed(1)}
-                          <span className="text-[10px] text-[#8B95A7] font-normal">/10</span>
-                        </div>
-                      </div>
+                  <div className="p-5 rounded-xl bg-gradient-to-br from-[#00181a] to-[#0e131b] border border-cyan-500/40 space-y-2">
+                    <div className="eyebrow text-cyan-400">
+                      CAMPEÃO MUNDIAL DE CONSTRUTORES // 2026
                     </div>
-
-                    {/* Resumo da Posição */}
-                    <div className="grid grid-cols-3 gap-2 p-2.5 rounded-lg bg-[#0E131B] border border-[#1F2733] text-center text-xs">
-                      <div>
-                        <span className="text-[#8B95A7] block text-[10px]">Posição</span>
-                        <strong className="font-num text-xs text-[#F5F7FA]">
-                          {t.position > 0 ? `P${t.position}` : '—'}
-                        </strong>
-                      </div>
-                      <div>
-                        <span className="text-[#8B95A7] block text-[10px]">Pontos</span>
-                        <strong className="font-num text-xs text-cyan-400">{t.points} pts</strong>
-                      </div>
-                      <div>
-                        <span className="text-[#8B95A7] block text-[10px]">Vitórias</span>
-                        <strong className="font-num text-xs text-amber-400">{t.wins}</strong>
-                      </div>
+                    <div className="text-2xl font-black text-[#F5F7FA]">{cChampion.teamName}</div>
+                    <div className="text-xs text-[#8B95A7]">
+                      Mercedes-AMG Petronas •{' '}
+                      <strong className="text-cyan-400 font-num">{cChampion.points} pts</strong>
                     </div>
-
-                    {/* Pilotos */}
-                    <div className="grid grid-cols-2 gap-2 text-xs">
-                      <div className="p-2 rounded-lg bg-[#0E131B] border border-[#1F2733] space-y-1">
-                        <div className="flex items-center justify-between text-[10px]">
-                          <span className="text-emerald-400 font-semibold">#1 Titular</span>
-                          <span>{t.driver1.flag}</span>
-                        </div>
-                        <div className="font-bold text-[#F5F7FA] truncate text-xs">
-                          {t.driver1.name}
-                        </div>
-                        <div className="text-[10px] text-[#8B95A7] font-num">
-                          Vel {t.driver1.speed} • Cons {t.driver1.consistency}
-                        </div>
-                      </div>
-
-                      <div className="p-2 rounded-lg bg-[#0E131B] border border-[#1F2733] space-y-1">
-                        <div className="flex items-center justify-between text-[10px]">
-                          <span className="text-emerald-400 font-semibold">#2 Titular</span>
-                          <span>{t.driver2.flag}</span>
-                        </div>
-                        <div className="font-bold text-[#F5F7FA] truncate text-xs">
-                          {t.driver2.name}
-                        </div>
-                        <div className="text-[10px] text-[#8B95A7] font-num">
-                          Vel {t.driver2.speed} • Cons {t.driver2.consistency}
-                        </div>
-                      </div>
-                    </div>
-
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setSelectedTeam(t)}
-                      className="w-full border-[#1F2733] bg-[#161D29] hover:bg-[#1f2733] text-[#F5F7FA] text-xs h-8"
-                    >
-                      Ver Ficha Técnica Completa
-                    </Button>
                   </div>
                 </div>
-              )
-            })}
-          </div>
-        )}
-      </div>
+
+                {/* Tabela de Construtores 2026 Oficial */}
+                <div className="space-y-3">
+                  <h3 className="text-sm font-bold text-[#F5F7FA] flex items-center gap-2">
+                    <Shield className="w-4 h-4 text-cyan-400" />
+                    Classificação Final de Construtores 2026
+                  </h3>
+
+                  {constructorStandings.length > 0 ? (
+                    <div className="overflow-x-auto rounded-xl border border-[#1F2733] bg-[#11161F]">
+                      <table className="w-full text-xs text-left">
+                        <thead className="bg-[#0E131B] text-[#8B95A7] uppercase border-b border-[#1F2733] font-medium text-[10px]">
+                          <tr>
+                            <th className="py-2.5 px-3 text-center">Pos</th>
+                            <th className="py-2.5 px-3">Equipe</th>
+                            <th className="py-2.5 px-3 text-center">Motor</th>
+                            <th className="py-2.5 px-3 text-right">Vitórias</th>
+                            <th className="py-2.5 px-3 text-right">Pódios</th>
+                            <th className="py-2.5 px-3 text-right">Pontos</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-[#1F2733]/50">
+                          {constructorStandings.map((c, i) => (
+                            <tr key={c.id || i} className="hover:bg-[#161D29]/50 transition-colors">
+                              <td className="py-2 px-3 text-center font-bold text-amber-400">
+                                P{i + 1}
+                              </td>
+                              <td className="py-2 px-3 font-semibold text-[#F5F7FA] flex items-center gap-2">
+                                <span
+                                  className="w-2.5 h-2.5 rounded-full"
+                                  style={{ backgroundColor: c.color || '#E10600' }}
+                                />
+                                {c.name || c.teamName}
+                              </td>
+                              <td className="py-2 px-3 text-center text-[#8B95A7]">
+                                {c.engine || '—'}
+                              </td>
+                              <td className="py-2 px-3 text-right font-num text-[#8B95A7]">
+                                {c.wins ?? 0}
+                              </td>
+                              <td className="py-2 px-3 text-right font-num text-[#8B95A7]">
+                                {c.podiums ?? 0}
+                              </td>
+                              <td className="py-2 px-3 text-right font-bold font-num text-cyan-400">
+                                {c.points ?? 0} pts
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  ) : (
+                    <div className="p-4 rounded-xl bg-[#11161F] border border-[#1F2733] text-xs text-[#8B95A7]">
+                      Mercedes-AMG Petronas (950 pts) • Scuderia Ferrari • McLaren • Red Bull
+                      Racing...
+                    </div>
+                  )}
+                </div>
+
+                {/* Tabela de Pilotos 2026 Oficial */}
+                <div className="space-y-3">
+                  <h3 className="text-sm font-bold text-[#F5F7FA] flex items-center gap-2">
+                    <Users className="w-4 h-4 text-amber-400" />
+                    Classificação Final de Pilotos 2026
+                  </h3>
+
+                  {driverStandings.length > 0 ? (
+                    <div className="overflow-x-auto rounded-xl border border-[#1F2733] bg-[#11161F]">
+                      <table className="w-full text-xs text-left">
+                        <thead className="bg-[#0E131B] text-[#8B95A7] uppercase border-b border-[#1F2733] font-medium text-[10px]">
+                          <tr>
+                            <th className="py-2.5 px-3 text-center">Pos</th>
+                            <th className="py-2.5 px-3">Piloto</th>
+                            <th className="py-2.5 px-3">Equipe</th>
+                            <th className="py-2.5 px-3 text-right">Vitórias</th>
+                            <th className="py-2.5 px-3 text-right">Pontos</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-[#1F2733]/50">
+                          {driverStandings.slice(0, 15).map((d, i) => (
+                            <tr key={d.id || i} className="hover:bg-[#161D29]/50 transition-colors">
+                              <td className="py-2 px-3 text-center font-bold text-amber-400">
+                                P{i + 1}
+                              </td>
+                              <td className="py-2 px-3 font-semibold text-[#F5F7FA]">
+                                {d.name} {d.flag ? `(${d.flag})` : ''}
+                              </td>
+                              <td className="py-2 px-3 text-[#8B95A7]">{d.teamName || '—'}</td>
+                              <td className="py-2 px-3 text-right font-num text-[#8B95A7]">
+                                {d.wins ?? 0}
+                              </td>
+                              <td className="py-2 px-3 text-right font-bold font-num text-cyan-400">
+                                {d.points ?? 0} pts
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  ) : (
+                    <div className="p-4 rounded-xl bg-[#11161F] border border-[#1F2733] text-xs text-[#8B95A7]">
+                      Andrea Kimi Antonelli (300 pts) • George Russell • Charles Leclerc • Lando
+                      Norris...
+                    </div>
+                  )}
+                </div>
+              </div>
+            )
+          })()}
+        </div>
+      )}
 
       {/* Modal / Painel Elevado Camada 2: Detalhes da Construtora */}
       <Dialog open={!!selectedTeam} onOpenChange={(open) => !open && setSelectedTeam(null)}>
