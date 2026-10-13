@@ -17,6 +17,8 @@ describe('Frente 1 — Nova Navegação Global (Sidebar)', () => {
     expect(allNames).toContain('Corrida')
     expect(allNames).not.toContain('Fim de Semana')
     expect(allNames).toContain('Campeonato')
+    expect(allNames).toContain('Equipes')
+    expect(allNames).toContain('Universo F1')
     expect(allNames).toContain('Histórico')
   })
 
@@ -27,11 +29,11 @@ describe('Frente 1 — Nova Navegação Global (Sidebar)', () => {
     expect(allItems.find((i) => i.path === '/car')?.path).toBe('/car')
     expect(allItems.find((i) => i.path === '/sponsors')?.path).toBe('/sponsors')
     expect(allItems.find((i) => i.path === '/corrida')?.path).toBe('/corrida')
+    expect(allItems.find((i) => i.path === '/teams')?.path).toBe('/teams')
     expect(allItems.find((i) => i.path === '/paddock')?.path).toBe('/paddock')
     expect(allItems.find((i) => i.path === '/regulamento')?.path).toBe('/regulamento')
   })
 })
-
 describe('Frente 2 — Patrocinadores Atuais & Hotspots', () => {
   it('Define exatamente os 5 espaços canônicos de patrocínio', () => {
     expect(OFFICIAL_SPONSOR_SLOTS).toHaveLength(5)

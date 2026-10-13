@@ -74,6 +74,8 @@ export default function PaddockPage() {
   const { team: playerTeam, season, constructorStandings, loading } = useUnifiedSeason()
 
   const seasonYear = season?.year || 2026
+  const currentRound = season?.current_round ?? 1
+  const totalRounds = season?.total_rounds ?? 24
 
   // 1. Identificar chaves ou IDs canônicos inscritos na temporada atual
   const participatingKeys = useMemo<Set<string>>(() => {
