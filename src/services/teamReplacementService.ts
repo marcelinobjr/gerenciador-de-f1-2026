@@ -128,8 +128,21 @@ export class TeamReplacementService {
       currentSituation: t.currentSituation,
     }))
 
-    // Se a lista estiver vazia ou com poucos candidatos, fornecer candidatos aspirantes/procedurais
+    // Candidatos aspirantes solicitados especificamente pelo regulamento de encerramento do usuário:
+    // Toyota, Porsche, Prema, ART, DAMS, Hitech
     const proceduralCandidates: EligibleReplacementCandidate[] = [
+      {
+        key: 'toyota_gazoo',
+        name: 'Toyota Gazoo Racing',
+        shortName: 'Toyota',
+        country: 'Japão',
+        color: '#E60012',
+        engine: 'Toyota Hybrid V6',
+        strength: 78,
+        budget: 140000000,
+        historySummary: 'Retorno oficial da montadora japonesa ao grid com sede em Colônia.',
+        currentSituation: 'Parceria técnica e infraestrutura de ponta desenvolvida no WEC.',
+      },
       {
         key: 'porsche_f1',
         name: 'Porsche Motorsport F1',
@@ -141,18 +154,6 @@ export class TeamReplacementService {
         budget: 140000000,
         historySummary: 'Gigante de Stuttgart entrando com estrutura própria de fábrica.',
         currentSituation: 'Aspirante oficial com projeto de chassi e motor próprio.',
-      },
-      {
-        key: 'toyota_gazoo',
-        name: 'Toyota Gazoo Racing',
-        shortName: 'Toyota',
-        country: 'Japão',
-        color: '#E60012',
-        engine: 'Toyota Hybrid V6',
-        strength: 75,
-        budget: 135000000,
-        historySummary: 'Retorno da montadora japonesa ao grid com sede em Colônia.',
-        currentSituation: 'Parceria técnica e infraestrutura de ponta desenvolvida no WEC.',
       },
       {
         key: 'prema_racing',
