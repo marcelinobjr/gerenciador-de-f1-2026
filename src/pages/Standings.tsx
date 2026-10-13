@@ -1,4 +1,5 @@
-import React, { useState, useMemo } from 'react'
+import React, { useState, useMemo, useEffect } from 'react'
+import pb from '@/lib/pocketbase/client'
 import { useUnifiedSeason } from '@/hooks/use-unified-season'
 import { DriverStanding, TeamStanding } from '@/services/standingsService'
 import { Calendar, Compass, Trophy, Users, Shield, Scale, Award, ChevronRight } from 'lucide-react'
@@ -37,7 +38,9 @@ export default function StandingsPage() {
   useEffect(() => {
     async function loadHistories() {
       try {
-        const records = await pb.collection('season_histories').getFullList({ sort: '-season_year' })
+        const records = await pb
+          .collection('season_histories')
+          .getFullList({ sort: '-season_year' })
         setArchivedSeasons(records || [])
         if (records && records.length > 0) {
           setSelectedArchiveYear(records[0].season_year || 2026)
@@ -666,162 +669,164 @@ export default function StandingsPage() {
               </table>
             </div>
           )
-        ) : effectiveConstructorStandings.length === 0 ? (
-          <div className="p-12 text-center">
-            <EmptyState
-              icon={Trophy}
-              title="Sem classificação de construtores ainda"
-              description={`A tabela de construtores será preenchida automaticamente após a conclusão das sessões de corrida da temporada ${seasonYear}.`}
-            />
-          </div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse min-w-[760px]">
-              <thead>
-                <tr className="border-b border-[#E2E8F0] bg-[#FAFAFA] text-[11px] font-mono font-bold uppercase tracking-wider text-[#64748B]">
-                  <th className="py-3 px-4 text-center w-16">POS</th>
-                  <th className="py-3 px-4">EQUIPE</th>
-                  <th className="py-3 px-4 text-center w-24">VITÓRIAS</th>
-                  <th className="py-3 px-4 text-center w-24">PÓDIOS</th>
-                  <th className="py-3 px-4 text-right w-64">PONTOS</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-[#F1F5F9] text-xs">
-                {effectiveConstructorStandings.map((cTeam, index) => {
-                  const pos = index + 1
-                  const leaderPts = effectiveConstructorStandings[0]?.points || 0
-                  const gap = pos === 1 ? 'LÍDER' : `-${leaderPts - cTeam.points} pts`
-                  const ratio =
-                    maxConstructorPoints > 0
-                      ? Math.max(
-                          0,
-                          Math.min(100, Math.round((cTeam.points / maxConstructorPoints) * 100)),
-                        )
-                      : 0
+        ) : activeTab === 'constructors' ? (
+          effectiveConstructorStandings.length === 0 ? (
+            <div className="p-12 text-center">
+              <EmptyState
+                icon={Trophy}
+                title="Sem classificação de construtores ainda"
+                description={`A tabela de construtores será preenchida automaticamente após a conclusão das sessões de corrida da temporada ${seasonYear}.`}
+              />
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-left border-collapse min-w-[760px]">
+                <thead>
+                  <tr className="border-b border-[#E2E8F0] bg-[#FAFAFA] text-[11px] font-mono font-bold uppercase tracking-wider text-[#64748B]">
+                    <th className="py-3 px-4 text-center w-16">POS</th>
+                    <th className="py-3 px-4">EQUIPE</th>
+                    <th className="py-3 px-4 text-center w-24">VITÓRIAS</th>
+                    <th className="py-3 px-4 text-center w-24">PÓDIOS</th>
+                    <th className="py-3 px-4 text-right w-64">PONTOS</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-[#F1F5F9] text-xs">
+                  {effectiveConstructorStandings.map((cTeam, index) => {
+                    const pos = index + 1
+                    const leaderPts = effectiveConstructorStandings[0]?.points || 0
+                    const gap = pos === 1 ? 'LÍDER' : `-${leaderPts - cTeam.points} pts`
+                    const ratio =
+                      maxConstructorPoints > 0
+                        ? Math.max(
+                            0,
+                            Math.min(100, Math.round((cTeam.points / maxConstructorPoints) * 100)),
+                          )
+                        : 0
 
-                  return (
-                    <tr
-                      key={cTeam.id}
-                      onClick={() => handleTeamClick(cTeam)}
-                      className={`transition-colors cursor-pointer group ${
-                        cTeam.isPlayer ? 'bg-red-50/40 hover:bg-red-50/70' : 'hover:bg-neutral-50'
-                      }`}
-                    >
-                      {/* POS + Variação N vs N-1 */}
-                      <td className="py-2.5 px-4 text-center">
-                        <div className="flex items-center justify-center gap-1.5">
-                          <span
-                            className={`inline-flex items-center justify-center w-6 h-6 rounded-full font-mono font-black text-[11px] shadow-2xs ${
-                              pos === 1
-                                ? 'bg-amber-400 text-amber-950 ring-1 ring-amber-500/50'
-                                : pos === 2
-                                  ? 'bg-slate-300 text-slate-900 ring-1 ring-slate-400/50'
-                                  : pos === 3
-                                    ? 'bg-amber-700 text-white ring-1 ring-amber-800/50'
-                                    : 'bg-neutral-100 text-[#64748B]'
-                            }`}
-                          >
-                            {pos}
-                          </span>
-                          {cTeam.positionDeltaText && cTeam.positionDeltaText !== '—' && (
+                    return (
+                      <tr
+                        key={cTeam.id}
+                        onClick={() => handleTeamClick(cTeam)}
+                        className={`transition-colors cursor-pointer group ${
+                          cTeam.isPlayer ? 'bg-red-50/40 hover:bg-red-50/70' : 'hover:bg-neutral-50'
+                        }`}
+                      >
+                        {/* POS + Variação N vs N-1 */}
+                        <td className="py-2.5 px-4 text-center">
+                          <div className="flex items-center justify-center gap-1.5">
                             <span
-                              className={`text-[10px] font-mono font-bold ${
-                                cTeam.positionDeltaText.startsWith('↑')
-                                  ? 'text-emerald-600'
-                                  : 'text-rose-600'
+                              className={`inline-flex items-center justify-center w-6 h-6 rounded-full font-mono font-black text-[11px] shadow-2xs ${
+                                pos === 1
+                                  ? 'bg-amber-400 text-amber-950 ring-1 ring-amber-500/50'
+                                  : pos === 2
+                                    ? 'bg-slate-300 text-slate-900 ring-1 ring-slate-400/50'
+                                    : pos === 3
+                                      ? 'bg-amber-700 text-white ring-1 ring-amber-800/50'
+                                      : 'bg-neutral-100 text-[#64748B]'
                               }`}
                             >
-                              {cTeam.positionDeltaText}
+                              {pos}
                             </span>
-                          )}
-                        </div>
-                      </td>
-
-                      {/* EQUIPE: Logo reduzida oficial (20-28px) + Nome + Tag Sua Escuderia */}
-                      <td className="py-2.5 px-4">
-                        <div className="flex items-center gap-2.5">
-                          <TeamCrest
-                            team={cTeam.id || cTeam.name}
-                            teamName={cTeam.name}
-                            size="md"
-                          />
-                          <div className="flex items-center gap-2 truncate">
-                            <span
-                              className={`truncate ${
-                                cTeam.isPlayer
-                                  ? 'font-black text-[#0F172A] text-xs sm:text-sm'
-                                  : 'font-semibold text-[#0F172A]'
-                              }`}
-                            >
-                              {cTeam.name}
-                            </span>
-                            {cTeam.isPlayer && (
-                              <span className="inline-flex items-center px-1.5 py-0.2 rounded text-[9px] font-black uppercase tracking-wider bg-[#E10600] text-white shrink-0">
-                                SUA ESCUDERIA
+                            {cTeam.positionDeltaText && cTeam.positionDeltaText !== '—' && (
+                              <span
+                                className={`text-[10px] font-mono font-bold ${
+                                  cTeam.positionDeltaText.startsWith('↑')
+                                    ? 'text-emerald-600'
+                                    : 'text-rose-600'
+                                }`}
+                              >
+                                {cTeam.positionDeltaText}
                               </span>
                             )}
-                            {cTeam.isPlayer && (team?.constructors_points_deduction || 0) > 0 && (
-                              <Badge
-                                variant="outline"
-                                className="bg-red-50 text-red-600 border-red-300 text-[9px] px-1.5 py-0 h-4 font-mono font-bold"
-                              >
-                                -{team?.constructors_points_deduction} pts FIA
-                              </Badge>
-                            )}
                           </div>
-                        </div>
-                      </td>
+                        </td>
 
-                      {/* VITÓRIAS */}
-                      <td className="py-2.5 px-4 text-center">
-                        <span
-                          className={`font-mono font-bold ${
-                            cTeam.wins > 0 ? 'text-[#0F172A]' : 'text-[#94A3B8]'
-                          }`}
-                        >
-                          {cTeam.wins}
-                        </span>
-                      </td>
-
-                      {/* PÓDIOS */}
-                      <td className="py-2.5 px-4 text-center">
-                        <span
-                          className={`font-mono font-bold ${
-                            cTeam.podiums > 0 ? 'text-[#0F172A]' : 'text-[#94A3B8]'
-                          }`}
-                        >
-                          {cTeam.podiums}
-                        </span>
-                      </td>
-
-                      {/* PONTOS: Barra horizontal vermelha proporcional + Número oficial */}
-                      <td className="py-2.5 px-4 text-right">
-                        <div className="flex items-center justify-end gap-3 min-w-[200px]">
-                          {/* Barra proporcional ao líder */}
-                          <div className="w-28 sm:w-36 h-2 bg-neutral-100 rounded-full overflow-hidden border border-[#E2E8F0]">
-                            <div
-                              className="h-full bg-[#E10600] rounded-full transition-all duration-300"
-                              style={{ width: `${ratio}%` }}
+                        {/* EQUIPE: Logo reduzida oficial (20-28px) + Nome + Tag Sua Escuderia */}
+                        <td className="py-2.5 px-4">
+                          <div className="flex items-center gap-2.5">
+                            <TeamCrest
+                              team={cTeam.id || cTeam.name}
+                              teamName={cTeam.name}
+                              size="md"
                             />
+                            <div className="flex items-center gap-2 truncate">
+                              <span
+                                className={`truncate ${
+                                  cTeam.isPlayer
+                                    ? 'font-black text-[#0F172A] text-xs sm:text-sm'
+                                    : 'font-semibold text-[#0F172A]'
+                                }`}
+                              >
+                                {cTeam.name}
+                              </span>
+                              {cTeam.isPlayer && (
+                                <span className="inline-flex items-center px-1.5 py-0.2 rounded text-[9px] font-black uppercase tracking-wider bg-[#E10600] text-white shrink-0">
+                                  SUA ESCUDERIA
+                                </span>
+                              )}
+                              {cTeam.isPlayer && (team?.constructors_points_deduction || 0) > 0 && (
+                                <Badge
+                                  variant="outline"
+                                  className="bg-red-50 text-red-600 border-red-300 text-[9px] px-1.5 py-0 h-4 font-mono font-bold"
+                                >
+                                  -{team?.constructors_points_deduction} pts FIA
+                                </Badge>
+                              )}
+                            </div>
                           </div>
+                        </td>
 
-                          {/* Numeração de pontos */}
-                          <div className="text-right w-16">
-                            <span className="font-mono text-sm font-black text-[#0F172A]">
-                              {cTeam.points}
-                            </span>
-                            <span className="text-[10px] text-[#64748B] block font-mono leading-none">
-                              {gap}
-                            </span>
+                        {/* VITÓRIAS */}
+                        <td className="py-2.5 px-4 text-center">
+                          <span
+                            className={`font-mono font-bold ${
+                              cTeam.wins > 0 ? 'text-[#0F172A]' : 'text-[#94A3B8]'
+                            }`}
+                          >
+                            {cTeam.wins}
+                          </span>
+                        </td>
+
+                        {/* PÓDIOS */}
+                        <td className="py-2.5 px-4 text-center">
+                          <span
+                            className={`font-mono font-bold ${
+                              cTeam.podiums > 0 ? 'text-[#0F172A]' : 'text-[#94A3B8]'
+                            }`}
+                          >
+                            {cTeam.podiums}
+                          </span>
+                        </td>
+
+                        {/* PONTOS: Barra horizontal vermelha proporcional + Número oficial */}
+                        <td className="py-2.5 px-4 text-right">
+                          <div className="flex items-center justify-end gap-3 min-w-[200px]">
+                            {/* Barra proporcional ao líder */}
+                            <div className="w-28 sm:w-36 h-2 bg-neutral-100 rounded-full overflow-hidden border border-[#E2E8F0]">
+                              <div
+                                className="h-full bg-[#E10600] rounded-full transition-all duration-300"
+                                style={{ width: `${ratio}%` }}
+                              />
+                            </div>
+
+                            {/* Numeração de pontos */}
+                            <div className="text-right w-16">
+                              <span className="font-mono text-sm font-black text-[#0F172A]">
+                                {cTeam.points}
+                              </span>
+                              <span className="text-[10px] text-[#64748B] block font-mono leading-none">
+                                {gap}
+                              </span>
+                            </div>
                           </div>
-                        </div>
-                      </td>
-                    </tr>
-                  )
-                })}
-              </tbody>
-            </table>
-          </div>
+                        </td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )
         ) : (
           /* ABA RESULTADOS / ARQUIVO POR TEMPORADA */
           <div className="p-6 space-y-6">
@@ -832,20 +837,22 @@ export default function StandingsPage() {
                   Selecione a Temporada Homologada:
                 </span>
                 <div className="flex items-center gap-1.5">
-                  {(archivedSeasons.length > 0 ? archivedSeasons : [{ season_year: 2026 }]).map((h: any) => (
-                    <button
-                      key={h.id || h.season_year}
-                      type="button"
-                      onClick={() => setSelectedArchiveYear(h.season_year)}
-                      className={`px-3 py-1.5 rounded-lg text-xs font-bold font-mono transition-all ${
-                        selectedArchiveYear === h.season_year
-                          ? 'bg-[#0F172A] text-white shadow-xs'
-                          : 'bg-neutral-100 text-[#475569] hover:bg-neutral-200'
-                      }`}
-                    >
-                      Campeão {h.season_year}
-                    </button>
-                  ))}
+                  {(archivedSeasons.length > 0 ? archivedSeasons : [{ season_year: 2026 }]).map(
+                    (h: any) => (
+                      <button
+                        key={h.id || h.season_year}
+                        type="button"
+                        onClick={() => setSelectedArchiveYear(h.season_year)}
+                        className={`px-3 py-1.5 rounded-lg text-xs font-bold font-mono transition-all ${
+                          selectedArchiveYear === h.season_year
+                            ? 'bg-[#0F172A] text-white shadow-xs'
+                            : 'bg-neutral-100 text-[#475569] hover:bg-neutral-200'
+                        }`}
+                      >
+                        Campeão {h.season_year}
+                      </button>
+                    ),
+                  )}
                 </div>
               </div>
               <span className="text-xs font-mono text-emerald-600 font-bold bg-emerald-50 px-2.5 py-1 rounded-md border border-emerald-200">
@@ -854,11 +861,27 @@ export default function StandingsPage() {
             </div>
 
             {(() => {
-              const hist = archivedSeasons.find((h) => h.season_year === selectedArchiveYear) || archivedSeasons[0]
-              const dChamp = hist?.drivers_champion || { driverName: 'Andrea Kimi Antonelli', points: 300, wins: 12, podiums: 12 }
-              const cChamp = hist?.constructors_champion || { teamName: 'Mercedes-AMG PETRONAS', points: 475, wins: 19, podiums: 19 }
-              const dStandings: any[] = Array.isArray(hist?.final_driver_standings) ? hist.final_driver_standings : []
-              const cStandings: any[] = Array.isArray(hist?.final_constructor_standings) ? hist.final_constructor_standings : []
+              const hist =
+                archivedSeasons.find((h) => h.season_year === selectedArchiveYear) ||
+                archivedSeasons[0]
+              const dChamp = hist?.drivers_champion || {
+                driverName: 'Andrea Kimi Antonelli',
+                points: 300,
+                wins: 12,
+                podiums: 12,
+              }
+              const cChamp = hist?.constructors_champion || {
+                teamName: 'Mercedes-AMG PETRONAS',
+                points: 475,
+                wins: 19,
+                podiums: 19,
+              }
+              const dStandings: any[] = Array.isArray(hist?.final_driver_standings)
+                ? hist.final_driver_standings
+                : []
+              const cStandings: any[] = Array.isArray(hist?.final_constructor_standings)
+                ? hist.final_constructor_standings
+                : []
 
               // Pódio dos 3 primeiros do Mundial de Pilotos
               const podiumDrivers = dStandings.slice(0, 3)
@@ -887,7 +910,8 @@ export default function StandingsPage() {
                           {podiumDrivers[1]?.teamName || 'Equipe'}
                         </div>
                         <div className="text-xs font-mono font-bold text-slate-700 bg-slate-50 py-1 rounded">
-                          {podiumDrivers[1]?.points ?? 0} pts • {podiumDrivers[1]?.wins ?? 0} vitórias
+                          {podiumDrivers[1]?.points ?? 0} pts • {podiumDrivers[1]?.wins ?? 0}{' '}
+                          vitórias
                         </div>
                       </div>
 
@@ -906,7 +930,9 @@ export default function StandingsPage() {
                           {cChamp.teamName || podiumDrivers[0]?.teamName || ''}
                         </div>
                         <div className="text-xs font-mono font-black text-amber-950 bg-amber-100/80 py-1.5 rounded-lg">
-                          {dChamp.points ?? podiumDrivers[0]?.points ?? 0} pts • {dChamp.wins ?? podiumDrivers[0]?.wins ?? 0} vitórias • {dChamp.podiums ?? podiumDrivers[0]?.podiums ?? 0} pódios
+                          {dChamp.points ?? podiumDrivers[0]?.points ?? 0} pts •{' '}
+                          {dChamp.wins ?? podiumDrivers[0]?.wins ?? 0} vitórias •{' '}
+                          {dChamp.podiums ?? podiumDrivers[0]?.podiums ?? 0} pódios
                         </div>
                       </div>
 
@@ -922,7 +948,8 @@ export default function StandingsPage() {
                           {podiumDrivers[2]?.teamName || 'Equipe'}
                         </div>
                         <div className="text-xs font-mono font-bold text-amber-900 bg-amber-50/50 py-1 rounded">
-                          {podiumDrivers[2]?.points ?? 0} pts • {podiumDrivers[2]?.wins ?? 0} vitórias
+                          {podiumDrivers[2]?.points ?? 0} pts • {podiumDrivers[2]?.wins ?? 0}{' '}
+                          vitórias
                         </div>
                       </div>
                     </div>
@@ -953,12 +980,27 @@ export default function StandingsPage() {
                           </thead>
                           <tbody className="divide-y divide-[#F1F5F9] font-mono">
                             {cStandings.map((c, i) => (
-                              <tr key={c.id || i} className={i === 0 ? 'bg-amber-50/40 font-bold' : 'hover:bg-neutral-50'}>
-                                <td className="py-2 px-3 text-center font-bold text-[#64748B]">P{i + 1}</td>
-                                <td className="py-2 px-3 font-sans font-semibold text-[#0F172A] truncate max-w-[180px]">{c.name}</td>
-                                <td className="py-2 px-3 text-center text-[#475569]">{c.wins ?? 0}</td>
-                                <td className="py-2 px-3 text-center text-[#475569]">{c.podiums ?? 0}</td>
-                                <td className="py-2 px-3 text-right font-black text-[#0F172A]">{c.points ?? 0}</td>
+                              <tr
+                                key={c.id || i}
+                                className={
+                                  i === 0 ? 'bg-amber-50/40 font-bold' : 'hover:bg-neutral-50'
+                                }
+                              >
+                                <td className="py-2 px-3 text-center font-bold text-[#64748B]">
+                                  P{i + 1}
+                                </td>
+                                <td className="py-2 px-3 font-sans font-semibold text-[#0F172A] truncate max-w-[180px]">
+                                  {c.name}
+                                </td>
+                                <td className="py-2 px-3 text-center text-[#475569]">
+                                  {c.wins ?? 0}
+                                </td>
+                                <td className="py-2 px-3 text-center text-[#475569]">
+                                  {c.podiums ?? 0}
+                                </td>
+                                <td className="py-2 px-3 text-right font-black text-[#0F172A]">
+                                  {c.points ?? 0}
+                                </td>
                               </tr>
                             ))}
                           </tbody>
@@ -989,12 +1031,27 @@ export default function StandingsPage() {
                           </thead>
                           <tbody className="divide-y divide-[#F1F5F9] font-mono">
                             {dStandings.map((d, i) => (
-                              <tr key={d.id || i} className={i === 0 ? 'bg-amber-50/40 font-bold' : 'hover:bg-neutral-50'}>
-                                <td className="py-2 px-3 text-center font-bold text-[#64748B]">P{i + 1}</td>
-                                <td className="py-2 px-3 font-sans font-semibold text-[#0F172A] truncate max-w-[180px]">{d.name}</td>
-                                <td className="py-2 px-3 text-center text-[#475569]">{d.wins ?? 0}</td>
-                                <td className="py-2 px-3 text-center text-[#475569]">{d.podiums ?? 0}</td>
-                                <td className="py-2 px-3 text-right font-black text-[#0F172A]">{d.points ?? 0}</td>
+                              <tr
+                                key={d.id || i}
+                                className={
+                                  i === 0 ? 'bg-amber-50/40 font-bold' : 'hover:bg-neutral-50'
+                                }
+                              >
+                                <td className="py-2 px-3 text-center font-bold text-[#64748B]">
+                                  P{i + 1}
+                                </td>
+                                <td className="py-2 px-3 font-sans font-semibold text-[#0F172A] truncate max-w-[180px]">
+                                  {d.name}
+                                </td>
+                                <td className="py-2 px-3 text-center text-[#475569]">
+                                  {d.wins ?? 0}
+                                </td>
+                                <td className="py-2 px-3 text-center text-[#475569]">
+                                  {d.podiums ?? 0}
+                                </td>
+                                <td className="py-2 px-3 text-right font-black text-[#0F172A]">
+                                  {d.points ?? 0}
+                                </td>
                               </tr>
                             ))}
                           </tbody>

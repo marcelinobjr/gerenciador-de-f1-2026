@@ -1,2 +1,1 @@
-import { db } from './db'
-export {}
+// empty
