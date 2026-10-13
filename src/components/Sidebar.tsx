@@ -22,6 +22,7 @@ import {
   ShieldAlert,
   Gauge,
   Calendar,
+  Globe,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
@@ -63,7 +64,8 @@ export interface SidebarNavGroup {
  * SEÇÃO COMPETIÇÃO:
  * 8. Corrida (/corrida — treinos, qualy, sprint, corrida)
  * 9. Campeonato (/standings — calendário, classificação, resultados)
- * 10. Paddock (/paddock — todas as equipes, pilotos, staff, mercado, rumores, comparação)
+ * 10. Equipes (/teams — 4 abas: No Campeonato, Transferências, Avisos de Contratos, Campeonatos Anteriores)
+ * 11. Universo F1 (/paddock — pesquisa de universo F1, pilotos, equipes de suporte)
  * 11. Histórico (/historico — temporadas passadas, recordes, títulos, arquivo)
  */
 
@@ -98,7 +100,8 @@ export const CAREER_NAV_SECTIONS: NavSection[] = [
       { name: 'Calendário', path: '/calendario', icon: Calendar },
       { name: 'Corrida', path: '/corrida', icon: Gauge },
       { name: 'Campeonato', path: '/standings', icon: Trophy },
-      { name: 'Equipes', path: '/paddock', icon: Users },
+      { name: 'Equipes', path: '/teams', icon: Users },
+      { name: 'Universo F1', path: '/paddock', icon: Globe },
       { name: 'Regulamento FIA', path: '/regulamento', icon: BookOpen },
       { name: 'Histórico', path: '/historico', icon: BookOpen },
     ],
