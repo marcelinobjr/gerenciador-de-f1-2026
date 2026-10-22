@@ -171,8 +171,7 @@ export const DRIVE_STORAGE_PHOTOS: Record<string, string> = {
     'https://lh3.googleusercontent.com/drive-storage/AJQWtBP8rCiXTNEVbZSpH70Ihj-3MwlVHycOIUbCOJV8KKfRTACUiq30e1m29qCGWMMs_El9x1tKtE52Qrgc-otEL6EyY7AinLSEIIVf3rbN=s0',
   '18-Lance_Stroll.jpg':
     'https://lh3.googleusercontent.com/drive-storage/AJQWtBNIvmZrKAEP4T82YUtvyDVM2Orxy1BAK0g8YhPfs_o8RMeRnA-39koCafaLelwCbBMHkfe-Y7XFanFQl78UR1cQcTaok1TGZseIkx0B=s0',
-  '18-Rafaela_Ferreira.jpg':
-    'https://lh3.googleusercontent.com/drive-storage/AJQWtBMXQeY3M4hvB6jYTNZ3pYd2_Ch3k45kmncCB0f2AdtOcALPWV9I_DZ6xs_JXGbGd3w3UElw6gGt8aK7weSyDE2X8Jvopvp3uA-SU3Vo=s0',
+  '18-Rafaela_Ferreira.jpg': '/pilotos/DRV_0071.jpg',
   '18-Sebastien_Bourdais.jpg':
     'https://lh3.googleusercontent.com/drive-storage/AJQWtBM55QD1ov8p4Cqo-MWMNhACikFzlDGlQATi2L30nlDMU3RplWAPCvYfWdplSe79d8hFNPw5efLhjJYUOz9YuOZJ6S93lxlCaKX0m4lj=s0',
   '20-Christopher_Bell.jpg':

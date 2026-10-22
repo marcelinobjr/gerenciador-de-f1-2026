@@ -323,6 +323,8 @@ export const DRIVER_CANONICAL_PHOTO_MAP: Record<string, string> = {
   rachelrobertson: '/pilotos/DRV_0112.jpg',
   rafaelvillagomez: '/pilotos/DRV_0127.jpg',
   rafaelaferreira: '/pilotos/DRV_0071.jpg',
+  mhi73bs998erxn5: '/pilotos/DRV_0071.jpg',
+  drv_rafaela_ferreira: '/pilotos/DRV_0071.jpg',
   richardverschoor: '/pilotos/DRV_0128.jpg',
   ritomomiyata: '/pilotos/DRV_0129.jpg',
   robertkubica: '/pilotos/DRV_0113.jpg',

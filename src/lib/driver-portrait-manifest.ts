@@ -564,9 +564,8 @@ export const DRIVE_REGISTERED_PORTRAITS: DriverPortraitEntry[] = [
     originalFilename: '18-Rafaela_Ferreira.jpg',
     sourceFolder: '1OAz4K2xl98CpGfe9XJuJMd7bfYpjMWiG',
     category: 'pilot_registered',
-    displayUrl:
-      'https://lh3.googleusercontent.com/drive-storage/AJQWtBPUnxA_mr7eqrAQTgsNpkf_d58C0HF1Qno81X8TWB5FH95UhRTMXMiMW84y6VwqTJzWOsiycugA9T3SvCCNG8Ci50mOfz9yIMBjTxk=s0',
-    thumbnailUrl: 'https://drive.google.com/thumbnail?id=1yqSq0IT48PiJcYutbrq8qAT6txrZwshH&sz=w800',
+    displayUrl: '/pilotos/DRV_0071.jpg',
+    thumbnailUrl: '/pilotos/DRV_0071.jpg',
   },
   {
     fileId: '11QzMwMzvBKjvpGab-kAsZeltRMmwyyYN',

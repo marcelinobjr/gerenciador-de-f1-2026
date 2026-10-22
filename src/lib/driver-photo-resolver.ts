@@ -72,7 +72,63 @@ export function resolveDriverPhoto(options: DriverPhotoResolveOptions): Resolved
   const fallbackInitials = extractDriverInitials(name)
   const candidateUrls: string[] = []
 
-  // 1. Imagem Customizada / Jogador (isCustom)
+  // 0. Checagem prévia: se este piloto resolver para um asset Canônico Real (DRV_XXXX)
+  // Pilotos reais do catálogo canônico (ex.: Rafaela Ferreira -> DRV_0071, Hamilton -> DRV_0104)
+  // DEVEM priorizar o arquivo local /pilotos/DRV_XXXX.jpg sobre URLs de Drive legadas.
+  // Mantemos o suporte a isCustom para pilotos procedurais criados pelo jogador (quando NÃO houver match canônico real).
+  let realCanonicalAssetPath: string | null = null
+  let realCanonicalAssetId: string | null = null
+
+  if (portraitAssetId && portraitAssetId.startsWith('DRV_')) {
+    realCanonicalAssetId = portraitAssetId
+    realCanonicalAssetPath = `/pilotos/${portraitAssetId}.jpg`
+  } else if (visualIdentity?.portraitAssetId && visualIdentity.portraitAssetId.startsWith('DRV_')) {
+    realCanonicalAssetId = visualIdentity.portraitAssetId
+    realCanonicalAssetPath = `/pilotos/${visualIdentity.portraitAssetId}.jpg`
+  } else {
+    const directCanonical = resolveCanonicalDriverImagePath(driverId, name)
+    if (directCanonical && directCanonical.startsWith('/pilotos/DRV_')) {
+      realCanonicalAssetPath = directCanonical
+      realCanonicalAssetId = directCanonical.split('/').pop()?.replace('.jpg', '') || null
+    } else {
+      const resolvedMaster =
+        (driverId ? getCanonicalDriverMaster(driverId) : null) ||
+        findCanonicalDriverMaster(driverId, name)
+      const directAssetId = driverId ? getCanonicalAssetId(driverId) : null
+      const effectiveAssetId = resolvedMaster?.assetId || directAssetId
+      if (effectiveAssetId && effectiveAssetId.startsWith('DRV_')) {
+        realCanonicalAssetId = effectiveAssetId
+        realCanonicalAssetPath = `/pilotos/${effectiveAssetId}.jpg`
+      }
+    }
+  }
+
+  // 1. Se identificamos um piloto canônico real (DRV_XXXX), a foto canônica TEM PRECEDÊNCIA MÁXIMA!
+  // URLs customizadas ou do Drive são colocadas como candidatos secundários de fallback.
+  if (realCanonicalAssetPath && realCanonicalAssetId) {
+    candidateUrls.push(realCanonicalAssetPath)
+    if (customImageUrl && customImageUrl !== realCanonicalAssetPath) {
+      candidateUrls.push(customImageUrl)
+    }
+    if (
+      visualIdentity?.customImageUrl &&
+      visualIdentity.customImageUrl !== realCanonicalAssetPath &&
+      !candidateUrls.includes(visualIdentity.customImageUrl)
+    ) {
+      candidateUrls.push(visualIdentity.customImageUrl)
+    }
+    return {
+      url: realCanonicalAssetPath,
+      candidateUrls,
+      fallbackInitials,
+      teamColor: teamColor || '#E10600',
+      sourceType: 'canonical_real',
+      assetId: realCanonicalAssetId,
+      driverId: driverId || undefined,
+    }
+  }
+
+  // 1.1 Imagem Customizada legítima do Jogador (pilotos newgen/procedurais customizados)
   if (customImageUrl) {
     candidateUrls.push(customImageUrl)
     return {

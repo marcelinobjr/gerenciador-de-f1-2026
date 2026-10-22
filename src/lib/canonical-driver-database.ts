@@ -178,6 +178,9 @@ export const CANONICAL_DRIVER_ID_TO_ASSET_ID: Record<string, string | null> = {
   drv_zak_osullivan: 'DRV_0188',
   'mbj-128': 'DRV_0075', // 70. Sébastien Bourdais
   drv_sebastien_bourdais: 'DRV_0075',
+  mhi73bs998erxn5: 'DRV_0071', // Rafaela Ferreira (Audi reserve / F1 Academy #18)
+  pil_0027: 'DRV_0071',
+  drv_rafaela_ferreira: 'DRV_0071',
 }
 
 for (const pilot of MBJ_2026_PILOTS) {
@@ -459,6 +462,23 @@ const CANONICAL_DRIVER_IDENTITY_ALIASES: Record<string, string[]> = {
     'drv_0020',
   ],
   'albon-runtime-alias': ['albon', 'alexander albon', 'mbj-013', 'drv_0013', 'alex-albon'],
+  mhi73bs998erxn5: [
+    'rafaela_ferreira',
+    'rafaelaferreira',
+    'drv_rafaela_ferreira',
+    'driver_rafaela_ferreira',
+    'pil_0027',
+    'drv_0071',
+    '18-rafaela_ferreira',
+  ],
+  rafaela_ferreira: [
+    'mhi73bs998erxn5',
+    'rafaelaferreira',
+    'drv_rafaela_ferreira',
+    'driver_rafaela_ferreira',
+    'pil_0027',
+    'drv_0071',
+  ],
   bortoleto: [
     'driver_gabriel_bortoleto',
     'drv_gabriel_bortoleto',

@@ -49,15 +49,18 @@ export const DriverPoster: React.FC<DriverPosterProps> = ({
     setCandidateIndex(0)
   }, [name, driverId, effectiveVisualIdentity])
 
-  const isExhausted = candidateIndex >= candidateUrls.length
+  const isExhausted = candidateIndex >= candidateUrls.length || candidateUrls.length === 0
   const currentSrc = !isExhausted ? candidateUrls[candidateIndex] : null
 
+  // Fallback neutro com iniciais limpas sempre que esgotar candidatos ou quando não houver URL
   if (isExhausted || !currentSrc) {
     if (!showInitialsFallback) return null
+    const initials = getInitials(name) || 'F1'
     return (
       <div
+        data-testid="driver-poster-fallback-initials"
         className={cn(
-          'flex items-center justify-center font-bold tracking-wider select-none text-zinc-300 bg-gradient-to-br from-zinc-800 to-zinc-950 border border-zinc-700/60 rounded-md shadow-inner',
+          'flex items-center justify-center font-bold tracking-wider select-none text-zinc-200 bg-gradient-to-br from-zinc-800 via-zinc-900 to-zinc-950 border border-zinc-700/60 rounded-md shadow-inner',
           aspectRatio === 'poster'
             ? 'aspect-[3/4]'
             : aspectRatio === 'tall'
@@ -66,7 +69,7 @@ export const DriverPoster: React.FC<DriverPosterProps> = ({
           className,
         )}
       >
-        <span className="text-xl sm:text-2xl drop-shadow-md">{getInitials(name)}</span>
+        <span className="text-xl sm:text-2xl drop-shadow-md">{initials}</span>
       </div>
     )
   }
