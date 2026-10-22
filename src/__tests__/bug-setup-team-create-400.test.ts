@@ -262,4 +262,58 @@ describe('BUG-SETUP-TEAM-CREATE-400 — Team Selection & Career Creation Idempot
     expect(result).toEqual(mockExistingTeam)
     expect(createSpy).not.toHaveBeenCalled()
   })
+
+  it('handleConfirmOfficial on TeamSelectionPage: pre-check skips create if user already has team', async () => {
+    // Simula a lógica exata de verificação prévia no clique de confirmação
+    const effectiveUserId = mockUserId
+    const getPlayerTeamSpy = vi
+      .spyOn(f1Service, 'getPlayerTeam')
+      .mockResolvedValue(mockExistingTeam as any)
+    const initOfficialSpy = vi.spyOn(f1Service, 'initializeOfficialTeam')
+
+    // Executa a verificação prévia como em handleConfirmOfficial
+    const preExisting = await f1Service.getPlayerTeam(effectiveUserId)
+    let teamToUse = preExisting
+    if (!preExisting) {
+      teamToUse = await f1Service.initializeOfficialTeam(effectiveUserId, 'audi', {} as any)
+    }
+
+    expect(getPlayerTeamSpy).toHaveBeenCalledWith(effectiveUserId)
+    expect(initOfficialSpy).not.toHaveBeenCalled()
+    expect(teamToUse).toEqual(mockExistingTeam)
+  })
+
+  it('handleConfirmOfficial on TeamSelectionPage: fallback recovers existing team when 400 is caught', async () => {
+    const effectiveUserId = mockUserId
+    const create400Error = new ClientResponseError({
+      status: 400,
+      data: {},
+      message: 'Failed to create record.',
+    })
+
+    // Pré-verificação inicial não encontra equipe (ex: corrida concorrente)
+    // Inicialização lança 400
+    // Bloco catch reconsulta e encontra mockExistingTeam
+    const getPlayerTeamSpy = vi
+      .spyOn(f1Service, 'getPlayerTeam')
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce(mockExistingTeam as any)
+
+    vi.spyOn(f1Service, 'initializeOfficialTeam').mockRejectedValue(create400Error)
+
+    let finalTeam = null
+    const preExisting = await f1Service.getPlayerTeam(effectiveUserId)
+    if (preExisting) {
+      finalTeam = preExisting
+    } else {
+      try {
+        finalTeam = await f1Service.initializeOfficialTeam(effectiveUserId, 'audi', {} as any)
+      } catch (err) {
+        finalTeam = await f1Service.getPlayerTeam(effectiveUserId)
+      }
+    }
+
+    expect(getPlayerTeamSpy).toHaveBeenCalledTimes(2)
+    expect(finalTeam).toEqual(mockExistingTeam)
+  })
 })

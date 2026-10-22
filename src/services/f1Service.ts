@@ -1377,14 +1377,12 @@ export const f1Service = {
         )
       } catch (createErr: any) {
         // Fallback idempotente se falhar com 400 (ex: race condition ou unicidade de user_id)
-        if (createErr?.status === 400) {
-          const fallbackTeam = await this.getPlayerTeam(effectiveUserId)
-          if (fallbackTeam) {
-            console.warn(
-              `[initializeCareerWithConfig] 400 capturado no create; equipe existente recuperada por user_id (${fallbackTeam.name}, id: ${fallbackTeam.id}). Reutilizando com sucesso.`,
-            )
-            return fallbackTeam
-          }
+        const fallbackTeam = await this.getPlayerTeam(effectiveUserId)
+        if (fallbackTeam) {
+          console.warn(
+            `[initializeCareerWithConfig] Erro capturado no create custom (status ${createErr?.status}); equipe existente recuperada por user_id (${fallbackTeam.name}, id: ${fallbackTeam.id}). Reutilizando com sucesso.`,
+          )
+          return fallbackTeam
         }
         throw createErr
       }
@@ -1517,14 +1515,12 @@ export const f1Service = {
         )
       } catch (createErr: any) {
         // Fallback idempotente se falhar com 400 (ex: race condition ou unicidade de user_id)
-        if (createErr?.status === 400) {
-          const fallbackTeam = await this.getPlayerTeam(effectiveUserId)
-          if (fallbackTeam) {
-            console.warn(
-              `[initializeCareerWithConfig] 400 capturado no create; equipe oficial existente recuperada por user_id (${fallbackTeam.name}, id: ${fallbackTeam.id}). Reutilizando com sucesso.`,
-            )
-            return fallbackTeam
-          }
+        const fallbackTeam = await this.getPlayerTeam(effectiveUserId)
+        if (fallbackTeam) {
+          console.warn(
+            `[initializeCareerWithConfig] Erro capturado no create oficial (status ${createErr?.status}); equipe oficial existente recuperada por user_id (${fallbackTeam.name}, id: ${fallbackTeam.id}). Reutilizando com sucesso.`,
+          )
+          return fallbackTeam
         }
         throw createErr
       }
@@ -1753,14 +1749,12 @@ export const f1Service = {
         component_ratings: officialTech.componentRatings,
       })
     } catch (createErr: any) {
-      if (createErr?.status === 400) {
-        const fallbackTeam = await this.getPlayerTeam(effectiveUserId)
-        if (fallbackTeam) {
-          console.warn(
-            `[initializeOfficialTeam] HTTP 400 capturado ao criar equipe. Equipe existente encontrada por user_id (${fallbackTeam.name}, id: ${fallbackTeam.id}). Reutilizando com sucesso.`,
-          )
-          return fallbackTeam
-        }
+      const fallbackTeam = await this.getPlayerTeam(effectiveUserId)
+      if (fallbackTeam) {
+        console.warn(
+          `[initializeOfficialTeam] Erro capturado ao criar equipe (status ${createErr?.status}). Equipe existente encontrada por user_id (${fallbackTeam.name}, id: ${fallbackTeam.id}). Reutilizando com sucesso.`,
+        )
+        return fallbackTeam
       }
       throw createErr
     }
@@ -1941,14 +1935,12 @@ export const f1Service = {
         component_ratings: customComponents,
       })
     } catch (createErr: any) {
-      if (createErr?.status === 400) {
-        const fallbackTeam = await this.getPlayerTeam(effectiveUserId)
-        if (fallbackTeam) {
-          console.warn(
-            `[initializeCustomTeam] HTTP 400 capturado ao criar equipe customizada. Equipe existente encontrada por user_id (${fallbackTeam.name}, id: ${fallbackTeam.id}). Reutilizando com sucesso.`,
-          )
-          return fallbackTeam
-        }
+      const fallbackTeam = await this.getPlayerTeam(effectiveUserId)
+      if (fallbackTeam) {
+        console.warn(
+          `[initializeCustomTeam] Erro capturado ao criar equipe customizada (status ${createErr?.status}). Equipe existente encontrada por user_id (${fallbackTeam.name}, id: ${fallbackTeam.id}). Reutilizando com sucesso.`,
+        )
+        return fallbackTeam
       }
       throw createErr
     }

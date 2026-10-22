@@ -104,47 +104,67 @@ export default function TeamSelectionPage() {
 
   // Handle selecting an official team
   const handleConfirmOfficial = async () => {
-    if (!selectedOfficialTeam || !user) return
+    if (!selectedOfficialTeam) return
+    const effectiveUserId =
+      user?.id || (await import('@/lib/pocketbase/client')).default.authStore.record?.id
+    if (!effectiveUserId) return
+
     setIsSubmitting(true)
     try {
-      const activeTeam = await f1Service.initializeOfficialTeam(user.id, selectedOfficialTeam.key, {
-        name: selectedOfficialTeam.name,
-        color: selectedOfficialTeam.color,
-        engine: selectedOfficialTeam.engine,
-        strength: selectedOfficialTeam.strength,
-        carLevel: selectedOfficialTeam.carLevel,
-        budget: selectedOfficialTeam.budget,
-        driver1: {
-          name: selectedOfficialTeam.driver1.name,
-          nationality: selectedOfficialTeam.driver1.nationality,
-          age: selectedOfficialTeam.driver1.age,
-          speed: selectedOfficialTeam.driver1.speed,
-          consistency: selectedOfficialTeam.driver1.consistency,
-          rain: selectedOfficialTeam.driver1.rain,
-          defense: selectedOfficialTeam.driver1.defense,
-          salary: selectedOfficialTeam.driver1.salary,
+      // (a) Verificação prévia síncrona/imediata por user_id do usuário AUTENTICADO dentro do clique
+      const preExisting = await f1Service.getPlayerTeam(effectiveUserId)
+      if (preExisting) {
+        await refreshTeamAndSeason()
+        toast({
+          title: `Carreira Ativa: ${preExisting.name}`,
+          description: `Você já possui a equipe ${preExisting.name} vinculada à sua conta. Redirecionando para a central de comando...`,
+        })
+        navigate('/', { replace: true })
+        return
+      }
+
+      const activeTeam = await f1Service.initializeOfficialTeam(
+        effectiveUserId,
+        selectedOfficialTeam.key,
+        {
+          name: selectedOfficialTeam.name,
+          color: selectedOfficialTeam.color,
+          engine: selectedOfficialTeam.engine,
+          strength: selectedOfficialTeam.strength,
+          carLevel: selectedOfficialTeam.carLevel,
+          budget: selectedOfficialTeam.budget,
+          driver1: {
+            name: selectedOfficialTeam.driver1.name,
+            nationality: selectedOfficialTeam.driver1.nationality,
+            age: selectedOfficialTeam.driver1.age,
+            speed: selectedOfficialTeam.driver1.speed,
+            consistency: selectedOfficialTeam.driver1.consistency,
+            rain: selectedOfficialTeam.driver1.rain,
+            defense: selectedOfficialTeam.driver1.defense,
+            salary: selectedOfficialTeam.driver1.salary,
+          },
+          driver2: {
+            name: selectedOfficialTeam.driver2.name,
+            nationality: selectedOfficialTeam.driver2.nationality,
+            age: selectedOfficialTeam.driver2.age,
+            speed: selectedOfficialTeam.driver2.speed,
+            consistency: selectedOfficialTeam.driver2.consistency,
+            rain: selectedOfficialTeam.driver2.rain,
+            defense: selectedOfficialTeam.driver2.defense,
+            salary: selectedOfficialTeam.driver2.salary,
+          },
+          reserveDriver: {
+            name: selectedOfficialTeam.reserveDriver.name,
+            nationality: selectedOfficialTeam.reserveDriver.nationality,
+            age: selectedOfficialTeam.reserveDriver.age,
+            speed: selectedOfficialTeam.reserveDriver.speed,
+            consistency: selectedOfficialTeam.reserveDriver.consistency,
+            rain: selectedOfficialTeam.reserveDriver.rain,
+            defense: selectedOfficialTeam.reserveDriver.defense,
+            salary: selectedOfficialTeam.reserveDriver.salary,
+          },
         },
-        driver2: {
-          name: selectedOfficialTeam.driver2.name,
-          nationality: selectedOfficialTeam.driver2.nationality,
-          age: selectedOfficialTeam.driver2.age,
-          speed: selectedOfficialTeam.driver2.speed,
-          consistency: selectedOfficialTeam.driver2.consistency,
-          rain: selectedOfficialTeam.driver2.rain,
-          defense: selectedOfficialTeam.driver2.defense,
-          salary: selectedOfficialTeam.driver2.salary,
-        },
-        reserveDriver: {
-          name: selectedOfficialTeam.reserveDriver.name,
-          nationality: selectedOfficialTeam.reserveDriver.nationality,
-          age: selectedOfficialTeam.reserveDriver.age,
-          speed: selectedOfficialTeam.reserveDriver.speed,
-          consistency: selectedOfficialTeam.reserveDriver.consistency,
-          rain: selectedOfficialTeam.reserveDriver.rain,
-          defense: selectedOfficialTeam.reserveDriver.defense,
-          salary: selectedOfficialTeam.reserveDriver.salary,
-        },
-      })
+      )
 
       await refreshTeamAndSeason()
 
@@ -160,16 +180,15 @@ export default function TeamSelectionPage() {
 
       navigate('/')
     } catch (err: any) {
-      // Verificar se já existe equipe para recuperação transparente
-      let hasExisting = false
+      // (b) Captura de erro (incluindo 400) com fallback transparente de reconsulta e reuso da equipe existente
+      let fallbackTeam = null
       try {
-        const check = await f1Service.getPlayerTeam(user.id)
-        if (check) {
-          hasExisting = true
+        fallbackTeam = await f1Service.getPlayerTeam(effectiveUserId)
+        if (fallbackTeam) {
           await refreshTeamAndSeason()
           toast({
             title: 'Carreira Recuperada',
-            description: `Equipe ${check.name} recuperada com sucesso. Redirecionando para o painel...`,
+            description: `Você já possui a equipe ${fallbackTeam.name} vinculada à sua conta. Redirecionando para o painel...`,
           })
           navigate('/', { replace: true })
           return
@@ -181,7 +200,7 @@ export default function TeamSelectionPage() {
       toast({
         variant: 'destructive',
         title: 'Erro ao inicializar equipe',
-        description: formatTeamCreationError(err, hasExisting),
+        description: formatTeamCreationError(err, Boolean(fallbackTeam)),
       })
     } finally {
       setIsSubmitting(false)
@@ -191,7 +210,9 @@ export default function TeamSelectionPage() {
   // Handle creating the 12th custom team
   const handleCreateCustom = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!user) return
+    const effectiveUserId =
+      user?.id || (await import('@/lib/pocketbase/client')).default.authStore.record?.id
+    if (!effectiveUserId) return
 
     const trimmed = customName.trim()
     if (!trimmed) {
@@ -217,8 +238,20 @@ export default function TeamSelectionPage() {
     setCustomNameError('')
     setIsSubmitting(true)
     try {
+      // (a) Verificação prévia síncrona/imediata por user_id do usuário AUTENTICADO dentro do clique
+      const preExisting = await f1Service.getPlayerTeam(effectiveUserId)
+      if (preExisting) {
+        await refreshTeamAndSeason()
+        toast({
+          title: `Carreira Ativa: ${preExisting.name}`,
+          description: `Você já possui a equipe ${preExisting.name} vinculada à sua conta. Redirecionando para o painel...`,
+        })
+        navigate('/', { replace: true })
+        return
+      }
+
       const activeTeam = await f1Service.initializeCustomTeam(
-        user.id,
+        effectiveUserId,
         trimmed,
         customEngine,
         customColor,
@@ -235,16 +268,15 @@ export default function TeamSelectionPage() {
 
       navigate(isReused ? '/' : '/team')
     } catch (err: any) {
-      // Verificar se já existe equipe para recuperação transparente
-      let hasExisting = false
+      // (b) Captura de erro (incluindo 400) com fallback transparente de reconsulta e reuso da equipe existente
+      let fallbackTeam = null
       try {
-        const check = await f1Service.getPlayerTeam(user.id)
-        if (check) {
-          hasExisting = true
+        fallbackTeam = await f1Service.getPlayerTeam(effectiveUserId)
+        if (fallbackTeam) {
           await refreshTeamAndSeason()
           toast({
             title: 'Carreira Recuperada',
-            description: `Equipe ${check.name} recuperada com sucesso. Redirecionando...`,
+            description: `Você já possui a equipe ${fallbackTeam.name} vinculada à sua conta. Redirecionando para o painel...`,
           })
           navigate('/', { replace: true })
           return
@@ -256,7 +288,7 @@ export default function TeamSelectionPage() {
       toast({
         variant: 'destructive',
         title: 'Erro ao criar equipe',
-        description: formatTeamCreationError(err, hasExisting),
+        description: formatTeamCreationError(err, Boolean(fallbackTeam)),
       })
     } finally {
       setIsSubmitting(false)
