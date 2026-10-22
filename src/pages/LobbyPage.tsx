@@ -3,7 +3,7 @@ import { useNavigate, useOutletContext } from 'react-router-dom'
 import { useAuth } from '@/contexts/AuthContext'
 import { f1Service } from '@/services/f1Service'
 import { useToast } from '@/hooks/use-toast'
-import { getErrorMessage } from '@/lib/pocketbase/errors'
+import { getErrorMessage, formatTeamCreationError } from '@/lib/pocketbase/errors'
 import { SessionExpiredError, refreshAuthSession } from '@/lib/pocketbase/authHelper'
 import { WizardStepper } from '@/components/lobby/WizardStepper'
 import { StepStart } from '@/components/lobby/StepStart'
@@ -252,6 +252,18 @@ export function LobbyPage() {
 
     setIsSubmitting(true)
     try {
+      // Se usuário já possui equipe, reutiliza e redireciona de imediato sem duplicar
+      const existingTeam = await f1Service.getPlayerTeam(user.id)
+      if (existingTeam) {
+        await refreshTeamAndSeason()
+        toast({
+          title: 'Carreira Carregada',
+          description: `Você já está no comando da ${existingTeam.name}. Redirecionando...`,
+        })
+        navigate('/')
+        return
+      }
+
       // 1. Garantir que a sessão esteja fresca antes de criar a carreira.
       // Se authRefresh falhar, redireciona para /auth com a mensagem pedida.
       try {
@@ -297,11 +309,21 @@ export function LobbyPage() {
         return
       }
 
-      const friendlyDetail = getErrorMessage(err)
-      const description =
-        friendlyDetail && friendlyDetail !== 'An unexpected error occurred.'
-          ? `Não foi possível criar a carreira: ${friendlyDetail}. Verifique os dados e tente novamente.`
-          : 'Não foi possível criar a carreira. Verifique os dados e tente novamente.'
+      // Verifica se houve conflito de equipe existente
+      let hasExisting = false
+      try {
+        const check = await f1Service.getPlayerTeam(user.id)
+        if (check) {
+          hasExisting = true
+          await refreshTeamAndSeason()
+          navigate('/')
+          return
+        }
+      } catch (_) {
+        // ignore
+      }
+
+      const description = formatTeamCreationError(err, hasExisting)
 
       toast({
         title: 'Não foi possível criar a carreira',

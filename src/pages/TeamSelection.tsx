@@ -5,6 +5,7 @@ import { f1Service } from '@/services/f1Service'
 import { OFFICIAL_GRID_TEAMS, OfficialGridTeam, ENGINE_SUPPLIERS } from '@/lib/f1-data'
 import { formatCurrency } from '@/lib/formatters'
 import { toast } from '@/hooks/use-toast'
+import { formatTeamCreationError } from '@/lib/pocketbase/errors'
 import {
   Flag,
   Shield,
@@ -46,10 +47,48 @@ import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
 import { Label } from '@/components/ui/label'
 
 export default function TeamSelectionPage() {
-  const { user, refreshTeamAndSeason } = useAuth()
+  const { user, refreshTeamAndSeason, team } = useAuth()
   const navigate = useNavigate()
 
   const [activeTab, setActiveTab] = useState<'existing' | 'custom'>('existing')
+
+  // Se o usuário autenticado já possui equipe, redireciona de imediato para a carreira
+  React.useEffect(() => {
+    let isMounted = true
+
+    async function checkExistingTeam() {
+      if (team) {
+        toast({
+          title: 'Carreira Carregada',
+          description: `Você já está no comando da ${team.name}. Redirecionando para o painel...`,
+        })
+        navigate('/', { replace: true })
+        return
+      }
+
+      if (user?.id) {
+        try {
+          const existing = await f1Service.getPlayerTeam(user.id)
+          if (existing && isMounted) {
+            await refreshTeamAndSeason()
+            toast({
+              title: 'Carreira Encontrada',
+              description: `Equipe ${existing.name} já vinculada à sua conta. Redirecionando...`,
+            })
+            navigate('/', { replace: true })
+          }
+        } catch (e) {
+          console.warn('[TeamSelectionPage] Erro ao verificar equipe existente:', e)
+        }
+      }
+    }
+
+    checkExistingTeam()
+
+    return () => {
+      isMounted = false
+    }
+  }, [user?.id, team, navigate, refreshTeamAndSeason])
 
   // Selected existing team for confirmation modal
   const [selectedOfficialTeam, setSelectedOfficialTeam] = useState<OfficialGridTeam | null>(null)
@@ -116,10 +155,23 @@ export default function TeamSelectionPage() {
 
       navigate('/')
     } catch (err: any) {
+      // Verificar se já existe equipe para exibir mensagem acionável
+      let hasExisting = false
+      try {
+        const check = await f1Service.getPlayerTeam(user.id)
+        if (check) {
+          hasExisting = true
+          await refreshTeamAndSeason()
+          navigate('/', { replace: true })
+        }
+      } catch (_) {
+        // ignore
+      }
+
       toast({
         variant: 'destructive',
         title: 'Erro ao inicializar equipe',
-        description: err?.message || 'Falha ao associar a equipe.',
+        description: formatTeamCreationError(err, hasExisting),
       })
     } finally {
       setIsSubmitting(false)
@@ -165,10 +217,23 @@ export default function TeamSelectionPage() {
 
       navigate('/team')
     } catch (err: any) {
+      // Verificar se já existe equipe para exibir mensagem acionável
+      let hasExisting = false
+      try {
+        const check = await f1Service.getPlayerTeam(user.id)
+        if (check) {
+          hasExisting = true
+          await refreshTeamAndSeason()
+          navigate('/team', { replace: true })
+        }
+      } catch (_) {
+        // ignore
+      }
+
       toast({
         variant: 'destructive',
         title: 'Erro ao criar equipe',
-        description: err?.message || 'Falha ao registrar nova escuderia.',
+        description: formatTeamCreationError(err, hasExisting),
       })
     } finally {
       setIsSubmitting(false)

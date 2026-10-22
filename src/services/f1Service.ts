@@ -1277,6 +1277,15 @@ export const f1Service = {
     // 2. Usar o ID do usuário atualmente autenticado no cliente compartilhado
     const activeUserId = pb.authStore.record?.id || userId
 
+    // 0. Comportamento backend-preferred: Se o usuário já possui equipe, reutilizá-la
+    const existingTeam = await this.getPlayerTeam(activeUserId)
+    if (existingTeam) {
+      console.warn(
+        `[initializeCareerWithConfig] Usuário ${activeUserId} já possui equipe vinculada (${existingTeam.name}, id: ${existingTeam.id}). Reutilizando registro existente sem recriar.`,
+      )
+      return existingTeam
+    }
+
     const isCustom = config.playerTeam.isCustom
     const managerName = config.manager.name || 'Chefe de Equipe'
 
@@ -1660,6 +1669,15 @@ export const f1Service = {
       }
     },
   ): Promise<TeamModel> {
+    // 0. Comportamento backend-preferred: Se o usuário já possui equipe, reutilizá-la
+    const existingTeam = await this.getPlayerTeam(userId)
+    if (existingTeam) {
+      console.warn(
+        `[initializeOfficialTeam] Usuário ${userId} já possui equipe vinculada (${existingTeam.name}, id: ${existingTeam.id}). Reutilizando registro existente sem recriar.`,
+      )
+      return existingTeam
+    }
+
     // População canônica de campos técnicos
     const officialTech = carTechnicalService.getOrCreateTeamTechnicalData(
       teamKey,
@@ -1819,6 +1837,15 @@ export const f1Service = {
     engineSupplier: 'Ferrari' | 'Mercedes' | 'Honda' | 'Ford' | 'Audi',
     teamColor: string = '#E10600',
   ): Promise<TeamModel> {
+    // 0. Comportamento backend-preferred: Se o usuário já possui equipe, reutilizá-la
+    const existingTeam = await this.getPlayerTeam(userId)
+    if (existingTeam) {
+      console.warn(
+        `[initializeCustomTeam] Usuário ${userId} já possui equipe vinculada (${existingTeam.name}, id: ${existingTeam.id}). Reutilizando registro existente sem recriar.`,
+      )
+      return existingTeam
+    }
+
     // 12th Team: Start with rookie strength ~55, humble budget ~130M, NO drivers hired yet
     const initialStrength = 55
     const initialBudget = 130000000
