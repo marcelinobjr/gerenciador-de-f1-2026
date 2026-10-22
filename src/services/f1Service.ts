@@ -129,10 +129,25 @@ export const f1Service = {
     try {
       if (!userId) return null
       const safeUserId = userId.replace(/"/g, '')
+      // Busca direta pelo user_id do usuário autenticado (critério de unicidade do banco)
       const records = await pb.collection('teams').getList<TeamModel>(1, 1, {
         filter: `user_id = "${safeUserId}"`,
       })
-      const team = records.items[0] || null
+      let team = records.items[0] || null
+
+      // Fallback de segurança: se não encontrou com safeUserId mas há usuário no authStore, tentar pelo authStore.id
+      if (!team && pb.authStore.record?.id && pb.authStore.record.id !== safeUserId) {
+        try {
+          const authUserId = pb.authStore.record.id.replace(/"/g, '')
+          const authRecords = await pb.collection('teams').getList<TeamModel>(1, 1, {
+            filter: `user_id = "${authUserId}"`,
+          })
+          team = authRecords.items[0] || null
+        } catch (_) {
+          // ignore fallback lookup error
+        }
+      }
+
       if (team) {
         // Enriquecimento transparente de dados técnicos (fallback defensivo sem sobrescrever banco)
         const enriched = carTechnicalService.ensureTechnicalData(team)
@@ -1278,10 +1293,11 @@ export const f1Service = {
     const activeUserId = pb.authStore.record?.id || userId
 
     // 0. Comportamento backend-preferred: Se o usuário já possui equipe, reutilizá-la
-    const existingTeam = await this.getPlayerTeam(activeUserId)
+    const effectiveUserId = activeUserId || pb.authStore.record?.id || userId
+    const existingTeam = await this.getPlayerTeam(effectiveUserId)
     if (existingTeam) {
       console.warn(
-        `[initializeCareerWithConfig] Usuário ${activeUserId} já possui equipe vinculada (${existingTeam.name}, id: ${existingTeam.id}). Reutilizando registro existente sem recriar.`,
+        `[initializeCareerWithConfig] Usuário ${effectiveUserId} já possui equipe vinculada (${existingTeam.name}, id: ${existingTeam.id}). Reutilizando registro existente sem recriar.`,
       )
       return existingTeam
     }
@@ -1306,57 +1322,72 @@ export const f1Service = {
       )
       const customFacilities = getInitialTeamFacilities('custom_12th')
 
-      const newTeam = await withAuthRetry(() =>
-        pb.collection('teams').create<TeamModel>({
-          name: teamName,
-          color: teamColor,
-          chassis_level: 45,
-          aero_level: 45,
-          strategy_level: 45,
-          budget: 135000000,
-          engine_supplier: engineSupplier,
-          strength: customMacro,
-          is_custom: true,
-          team_key: 'custom_12th',
-          user_id: activeUserId,
-          technical_attributes: customTechProfile.attributes,
-          calculated_overall: customTechProfile.calculatedOverall,
-          balance_delta: customTechProfile.balanceDelta,
-          component_ratings: customComponents,
-          factory_level: customFacilities.factory,
-          design_centre_level: customFacilities.design_centre,
-          cfd_level: customFacilities.cfd,
-          wind_tunnel_level: customFacilities.wind_tunnel,
-          manufacturing_level: customFacilities.manufacturing,
-          simulator_level: customFacilities.simulator,
-          operations_centre_level: customFacilities.operations_centre,
-          pitstop_center_level: customFacilities.pitstop_center,
-          youth_academy_level: customFacilities.youth_academy,
-          manager_name: managerName,
-          manager_profile: {
-            profileId: config.managerProfile.id,
-            title: config.managerProfile.title,
-            archetype: config.managerProfile.archetype,
-            specialty: config.managerProfile.specialty,
-            style: config.managerProfile.style,
-            nationality: config.manager.nationality,
-            age: config.manager.age,
-            avatarUrl: config.manager.avatarUrl || config.managerProfile.avatarUrl,
-            bonuses: config.managerProfile.bonuses,
-            weakness: config.managerProfile.weakness,
-            baseAttributes: config.managerProfile.baseAttributes,
-          },
-          career_settings: config.careerSettings,
-          custom_grid_teams: config.selectedTeams.map((t) => ({
-            key: t.key,
-            name: t.name,
-            engine: this.normalizeEngineSupplier(t.engine),
-            strength: t.strength,
-            color: t.color,
-          })),
-          universe_type: config.universeType,
-        }),
-      )
+      let newTeam: TeamModel
+      try {
+        newTeam = await withAuthRetry(() =>
+          pb.collection('teams').create<TeamModel>({
+            name: teamName,
+            color: teamColor,
+            chassis_level: 45,
+            aero_level: 45,
+            strategy_level: 45,
+            budget: 135000000,
+            engine_supplier: engineSupplier,
+            strength: customMacro,
+            is_custom: true,
+            team_key: 'custom_12th',
+            user_id: effectiveUserId,
+            technical_attributes: customTechProfile.attributes,
+            calculated_overall: customTechProfile.calculatedOverall,
+            balance_delta: customTechProfile.balanceDelta,
+            component_ratings: customComponents,
+            factory_level: customFacilities.factory,
+            design_centre_level: customFacilities.design_centre,
+            cfd_level: customFacilities.cfd,
+            wind_tunnel_level: customFacilities.wind_tunnel,
+            manufacturing_level: customFacilities.manufacturing,
+            simulator_level: customFacilities.simulator,
+            operations_centre_level: customFacilities.operations_centre,
+            pitstop_center_level: customFacilities.pitstop_center,
+            youth_academy_level: customFacilities.youth_academy,
+            manager_name: managerName,
+            manager_profile: {
+              profileId: config.managerProfile.id,
+              title: config.managerProfile.title,
+              archetype: config.managerProfile.archetype,
+              specialty: config.managerProfile.specialty,
+              style: config.managerProfile.style,
+              nationality: config.manager.nationality,
+              age: config.manager.age,
+              avatarUrl: config.manager.avatarUrl || config.managerProfile.avatarUrl,
+              bonuses: config.managerProfile.bonuses,
+              weakness: config.managerProfile.weakness,
+              baseAttributes: config.managerProfile.baseAttributes,
+            },
+            career_settings: config.careerSettings,
+            custom_grid_teams: config.selectedTeams.map((t) => ({
+              key: t.key,
+              name: t.name,
+              engine: this.normalizeEngineSupplier(t.engine),
+              strength: t.strength,
+              color: t.color,
+            })),
+            universe_type: config.universeType,
+          }),
+        )
+      } catch (createErr: any) {
+        // Fallback idempotente se falhar com 400 (ex: race condition ou unicidade de user_id)
+        if (createErr?.status === 400) {
+          const fallbackTeam = await this.getPlayerTeam(effectiveUserId)
+          if (fallbackTeam) {
+            console.warn(
+              `[initializeCareerWithConfig] 400 capturado no create; equipe existente recuperada por user_id (${fallbackTeam.name}, id: ${fallbackTeam.id}). Reutilizando com sucesso.`,
+            )
+            return fallbackTeam
+          }
+        }
+        throw createErr
+      }
 
       // Temporada 2026
       await withAuthRetry(() =>
@@ -1431,57 +1462,72 @@ export const f1Service = {
       )
       const officialFacilities = getInitialTeamFacilities(teamDef.key)
 
-      const newTeam = await withAuthRetry(() =>
-        pb.collection('teams').create<TeamModel>({
-          name: teamDef.name,
-          color: teamDef.color,
-          chassis_level: Math.round(teamDef.strength * 0.9),
-          aero_level: Math.round(teamDef.strength * 0.9),
-          strategy_level: Math.round(teamDef.strength * 0.88),
-          budget: teamDef.budget,
-          engine_supplier: engineSupplier,
-          strength: teamDef.strength,
-          is_custom: false,
-          team_key: teamDef.key,
-          user_id: activeUserId,
-          technical_attributes: officialTechData.attributes,
-          calculated_overall: officialTechData.calculatedOverall,
-          balance_delta: officialTechData.balanceDelta,
-          component_ratings: officialTechData.componentRatings,
-          factory_level: officialFacilities.factory,
-          design_centre_level: officialFacilities.design_centre,
-          cfd_level: officialFacilities.cfd,
-          wind_tunnel_level: officialFacilities.wind_tunnel,
-          manufacturing_level: officialFacilities.manufacturing,
-          simulator_level: officialFacilities.simulator,
-          operations_centre_level: officialFacilities.operations_centre,
-          pitstop_center_level: officialFacilities.pitstop_center,
-          youth_academy_level: officialFacilities.youth_academy,
-          manager_name: managerName,
-          manager_profile: {
-            profileId: config.managerProfile.id,
-            title: config.managerProfile.title,
-            archetype: config.managerProfile.archetype,
-            specialty: config.managerProfile.specialty,
-            style: config.managerProfile.style,
-            nationality: config.manager.nationality,
-            age: config.manager.age,
-            avatarUrl: config.manager.avatarUrl || config.managerProfile.avatarUrl,
-            bonuses: config.managerProfile.bonuses,
-            weakness: config.managerProfile.weakness,
-            baseAttributes: config.managerProfile.baseAttributes,
-          },
-          career_settings: config.careerSettings,
-          custom_grid_teams: config.selectedTeams.map((t) => ({
-            key: t.key,
-            name: t.name,
-            engine: this.normalizeEngineSupplier(t.engine),
-            strength: t.strength,
-            color: t.color,
-          })),
-          universe_type: config.universeType,
-        }),
-      )
+      let newTeam: TeamModel
+      try {
+        newTeam = await withAuthRetry(() =>
+          pb.collection('teams').create<TeamModel>({
+            name: teamDef.name,
+            color: teamDef.color,
+            chassis_level: Math.round(teamDef.strength * 0.9),
+            aero_level: Math.round(teamDef.strength * 0.9),
+            strategy_level: Math.round(teamDef.strength * 0.88),
+            budget: teamDef.budget,
+            engine_supplier: engineSupplier,
+            strength: teamDef.strength,
+            is_custom: false,
+            team_key: teamDef.key,
+            user_id: effectiveUserId,
+            technical_attributes: officialTechData.attributes,
+            calculated_overall: officialTechData.calculatedOverall,
+            balance_delta: officialTechData.balanceDelta,
+            component_ratings: officialTechData.componentRatings,
+            factory_level: officialFacilities.factory,
+            design_centre_level: officialFacilities.design_centre,
+            cfd_level: officialFacilities.cfd,
+            wind_tunnel_level: officialFacilities.wind_tunnel,
+            manufacturing_level: officialFacilities.manufacturing,
+            simulator_level: officialFacilities.simulator,
+            operations_centre_level: officialFacilities.operations_centre,
+            pitstop_center_level: officialFacilities.pitstop_center,
+            youth_academy_level: officialFacilities.youth_academy,
+            manager_name: managerName,
+            manager_profile: {
+              profileId: config.managerProfile.id,
+              title: config.managerProfile.title,
+              archetype: config.managerProfile.archetype,
+              specialty: config.managerProfile.specialty,
+              style: config.managerProfile.style,
+              nationality: config.manager.nationality,
+              age: config.manager.age,
+              avatarUrl: config.manager.avatarUrl || config.managerProfile.avatarUrl,
+              bonuses: config.managerProfile.bonuses,
+              weakness: config.managerProfile.weakness,
+              baseAttributes: config.managerProfile.baseAttributes,
+            },
+            career_settings: config.careerSettings,
+            custom_grid_teams: config.selectedTeams.map((t) => ({
+              key: t.key,
+              name: t.name,
+              engine: this.normalizeEngineSupplier(t.engine),
+              strength: t.strength,
+              color: t.color,
+            })),
+            universe_type: config.universeType,
+          }),
+        )
+      } catch (createErr: any) {
+        // Fallback idempotente se falhar com 400 (ex: race condition ou unicidade de user_id)
+        if (createErr?.status === 400) {
+          const fallbackTeam = await this.getPlayerTeam(effectiveUserId)
+          if (fallbackTeam) {
+            console.warn(
+              `[initializeCareerWithConfig] 400 capturado no create; equipe oficial existente recuperada por user_id (${fallbackTeam.name}, id: ${fallbackTeam.id}). Reutilizando com sucesso.`,
+            )
+            return fallbackTeam
+          }
+        }
+        throw createErr
+      }
 
       // Temporada 2026
       await withAuthRetry(() =>
@@ -1670,10 +1716,11 @@ export const f1Service = {
     },
   ): Promise<TeamModel> {
     // 0. Comportamento backend-preferred: Se o usuário já possui equipe, reutilizá-la
-    const existingTeam = await this.getPlayerTeam(userId)
+    const effectiveUserId = userId || pb.authStore.record?.id || ''
+    const existingTeam = await this.getPlayerTeam(effectiveUserId)
     if (existingTeam) {
       console.warn(
-        `[initializeOfficialTeam] Usuário ${userId} já possui equipe vinculada (${existingTeam.name}, id: ${existingTeam.id}). Reutilizando registro existente sem recriar.`,
+        `[initializeOfficialTeam] Usuário ${effectiveUserId} já possui equipe vinculada (${existingTeam.name}, id: ${existingTeam.id}). Reutilizando registro existente sem recriar.`,
       )
       return existingTeam
     }
@@ -1685,24 +1732,38 @@ export const f1Service = {
       officialData.engine,
     )
 
-    // 1. Create team
-    const newTeam = await pb.collection('teams').create<TeamModel>({
-      name: officialData.name,
-      color: officialData.color,
-      chassis_level: Math.round(officialData.strength * 0.9),
-      aero_level: Math.round(officialData.strength * 0.9),
-      strategy_level: Math.round(officialData.strength * 0.88),
-      budget: officialData.budget,
-      engine_supplier: officialData.engine,
-      strength: officialData.strength,
-      is_custom: false,
-      team_key: teamKey,
-      user_id: userId,
-      technical_attributes: officialTech.attributes,
-      calculated_overall: officialTech.calculatedOverall,
-      balance_delta: officialTech.balanceDelta,
-      component_ratings: officialTech.componentRatings,
-    })
+    // 1. Create team com captura e fallback idempotente caso retorne HTTP 400
+    let newTeam: TeamModel
+    try {
+      newTeam = await pb.collection('teams').create<TeamModel>({
+        name: officialData.name,
+        color: officialData.color,
+        chassis_level: Math.round(officialData.strength * 0.9),
+        aero_level: Math.round(officialData.strength * 0.9),
+        strategy_level: Math.round(officialData.strength * 0.88),
+        budget: officialData.budget,
+        engine_supplier: officialData.engine,
+        strength: officialData.strength,
+        is_custom: false,
+        team_key: teamKey,
+        user_id: effectiveUserId,
+        technical_attributes: officialTech.attributes,
+        calculated_overall: officialTech.calculatedOverall,
+        balance_delta: officialTech.balanceDelta,
+        component_ratings: officialTech.componentRatings,
+      })
+    } catch (createErr: any) {
+      if (createErr?.status === 400) {
+        const fallbackTeam = await this.getPlayerTeam(effectiveUserId)
+        if (fallbackTeam) {
+          console.warn(
+            `[initializeOfficialTeam] HTTP 400 capturado ao criar equipe. Equipe existente encontrada por user_id (${fallbackTeam.name}, id: ${fallbackTeam.id}). Reutilizando com sucesso.`,
+          )
+          return fallbackTeam
+        }
+      }
+      throw createErr
+    }
 
     // 2. Create season 2026
     await pb.collection('seasons').create({
@@ -1838,10 +1899,11 @@ export const f1Service = {
     teamColor: string = '#E10600',
   ): Promise<TeamModel> {
     // 0. Comportamento backend-preferred: Se o usuário já possui equipe, reutilizá-la
-    const existingTeam = await this.getPlayerTeam(userId)
+    const effectiveUserId = userId || pb.authStore.record?.id || ''
+    const existingTeam = await this.getPlayerTeam(effectiveUserId)
     if (existingTeam) {
       console.warn(
-        `[initializeCustomTeam] Usuário ${userId} já possui equipe vinculada (${existingTeam.name}, id: ${existingTeam.id}). Reutilizando registro existente sem recriar.`,
+        `[initializeCustomTeam] Usuário ${effectiveUserId} já possui equipe vinculada (${existingTeam.name}, id: ${existingTeam.id}). Reutilizando registro existente sem recriar.`,
       )
       return existingTeam
     }
@@ -1859,23 +1921,37 @@ export const f1Service = {
       engineSupplier,
     )
 
-    const newTeam = await pb.collection('teams').create<TeamModel>({
-      name: teamName,
-      color: teamColor,
-      chassis_level: 45,
-      aero_level: 45,
-      strategy_level: 45,
-      budget: 135000000,
-      engine_supplier: engineSupplier,
-      strength: customMacro,
-      is_custom: true,
-      team_key: 'custom_12th',
-      user_id: userId,
-      technical_attributes: customTech.attributes,
-      calculated_overall: customTech.calculatedOverall,
-      balance_delta: customTech.balanceDelta,
-      component_ratings: customComponents,
-    })
+    let newTeam: TeamModel
+    try {
+      newTeam = await pb.collection('teams').create<TeamModel>({
+        name: teamName,
+        color: teamColor,
+        chassis_level: 45,
+        aero_level: 45,
+        strategy_level: 45,
+        budget: 135000000,
+        engine_supplier: engineSupplier,
+        strength: customMacro,
+        is_custom: true,
+        team_key: 'custom_12th',
+        user_id: effectiveUserId,
+        technical_attributes: customTech.attributes,
+        calculated_overall: customTech.calculatedOverall,
+        balance_delta: customTech.balanceDelta,
+        component_ratings: customComponents,
+      })
+    } catch (createErr: any) {
+      if (createErr?.status === 400) {
+        const fallbackTeam = await this.getPlayerTeam(effectiveUserId)
+        if (fallbackTeam) {
+          console.warn(
+            `[initializeCustomTeam] HTTP 400 capturado ao criar equipe customizada. Equipe existente encontrada por user_id (${fallbackTeam.name}, id: ${fallbackTeam.id}). Reutilizando com sucesso.`,
+          )
+          return fallbackTeam
+        }
+      }
+      throw createErr
+    }
 
     // 2. Create season 2026
     await pb.collection('seasons').create({

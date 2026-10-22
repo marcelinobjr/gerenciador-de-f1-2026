@@ -107,7 +107,7 @@ export default function TeamSelectionPage() {
     if (!selectedOfficialTeam || !user) return
     setIsSubmitting(true)
     try {
-      await f1Service.initializeOfficialTeam(user.id, selectedOfficialTeam.key, {
+      const activeTeam = await f1Service.initializeOfficialTeam(user.id, selectedOfficialTeam.key, {
         name: selectedOfficialTeam.name,
         color: selectedOfficialTeam.color,
         engine: selectedOfficialTeam.engine,
@@ -148,21 +148,31 @@ export default function TeamSelectionPage() {
 
       await refreshTeamAndSeason()
 
+      const isReused = activeTeam?.id && activeTeam.team_key !== selectedOfficialTeam.key
       toast({
-        title: `Você assumiu a ${selectedOfficialTeam.name}!`,
-        description: `Titulares: ${selectedOfficialTeam.driver1.name} e ${selectedOfficialTeam.driver2.name} | Reserva: ${selectedOfficialTeam.reserveDriver.name}`,
+        title: isReused
+          ? `Carreira Ativa: ${activeTeam.name}`
+          : `Você assumiu a ${selectedOfficialTeam.name}!`,
+        description: isReused
+          ? `Você já possui a equipe ${activeTeam.name} vinculada à sua conta. Acessando a central de comando...`
+          : `Titulares: ${selectedOfficialTeam.driver1.name} e ${selectedOfficialTeam.driver2.name} | Reserva: ${selectedOfficialTeam.reserveDriver.name}`,
       })
 
       navigate('/')
     } catch (err: any) {
-      // Verificar se já existe equipe para exibir mensagem acionável
+      // Verificar se já existe equipe para recuperação transparente
       let hasExisting = false
       try {
         const check = await f1Service.getPlayerTeam(user.id)
         if (check) {
           hasExisting = true
           await refreshTeamAndSeason()
+          toast({
+            title: 'Carreira Recuperada',
+            description: `Equipe ${check.name} recuperada com sucesso. Redirecionando para o painel...`,
+          })
           navigate('/', { replace: true })
+          return
         }
       } catch (_) {
         // ignore
@@ -207,24 +217,37 @@ export default function TeamSelectionPage() {
     setCustomNameError('')
     setIsSubmitting(true)
     try {
-      await f1Service.initializeCustomTeam(user.id, trimmed, customEngine, customColor)
+      const activeTeam = await f1Service.initializeCustomTeam(
+        user.id,
+        trimmed,
+        customEngine,
+        customColor,
+      )
       await refreshTeamAndSeason()
 
+      const isReused = activeTeam?.id && activeTeam.name !== trimmed
       toast({
-        title: 'Escuderia Criada com Sucesso!',
-        description: `A ${trimmed} ingressou como a 12ª equipe do grid da F1 2026. Agora contrate seus pilotos no mercado!`,
+        title: isReused ? `Carreira Ativa: ${activeTeam.name}` : 'Escuderia Criada com Sucesso!',
+        description: isReused
+          ? `Você já possui a equipe ${activeTeam.name} vinculada à sua conta. Redirecionando...`
+          : `A ${trimmed} ingressou como a 12ª equipe do grid da F1 2026. Agora contrate seus pilotos no mercado!`,
       })
 
-      navigate('/team')
+      navigate(isReused ? '/' : '/team')
     } catch (err: any) {
-      // Verificar se já existe equipe para exibir mensagem acionável
+      // Verificar se já existe equipe para recuperação transparente
       let hasExisting = false
       try {
         const check = await f1Service.getPlayerTeam(user.id)
         if (check) {
           hasExisting = true
           await refreshTeamAndSeason()
-          navigate('/team', { replace: true })
+          toast({
+            title: 'Carreira Recuperada',
+            description: `Equipe ${check.name} recuperada com sucesso. Redirecionando...`,
+          })
+          navigate('/', { replace: true })
+          return
         }
       } catch (_) {
         // ignore

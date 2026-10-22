@@ -90,6 +90,131 @@ describe('BUG-SETUP-TEAM-CREATE-400 — Team Selection & Career Creation Idempot
     expect(createSpy).not.toHaveBeenCalled()
   })
 
+  it('initializeOfficialTeam fallback recovers existing team when pb.create throws 400 (race condition / unique constraint)', async () => {
+    // 1st getPlayerTeam returns null (check passes), create throws 400, 2nd getPlayerTeam finds team
+    const getPlayerTeamSpy = vi
+      .spyOn(f1Service, 'getPlayerTeam')
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce(mockExistingTeam as any)
+
+    const create400Error = new ClientResponseError({
+      status: 400,
+      data: {},
+      message: 'Failed to create record.',
+    })
+
+    const createSpy = vi.fn().mockRejectedValue(create400Error)
+    vi.spyOn(pb, 'collection').mockImplementation(
+      (name: string) =>
+        ({
+          create: createSpy,
+          getFirstListItem: vi.fn(),
+          update: vi.fn(),
+        }) as any,
+    )
+
+    const result = await f1Service.initializeOfficialTeam(mockUserId, 'audi', {
+      name: 'Audi F1 Team',
+      color: '#E10600',
+      engine: 'Audi',
+      strength: 86,
+      carLevel: 5,
+      budget: 165000000,
+      driver1: {
+        name: 'Nico Hulkenberg',
+        nationality: 'Alemanha',
+        age: 38,
+        speed: 84,
+        consistency: 85,
+        rain: 82,
+        defense: 83,
+        salary: 10000000,
+      },
+      driver2: {
+        name: 'Gabriel Bortoleto',
+        nationality: 'Brasil',
+        age: 21,
+        speed: 82,
+        consistency: 80,
+        rain: 80,
+        defense: 79,
+        salary: 5000000,
+      },
+    })
+
+    expect(createSpy).toHaveBeenCalled()
+    expect(getPlayerTeamSpy).toHaveBeenCalledTimes(2)
+    expect(result).toEqual(mockExistingTeam)
+  })
+
+  it('initializeCustomTeam fallback recovers existing team when pb.create throws 400', async () => {
+    const getPlayerTeamSpy = vi
+      .spyOn(f1Service, 'getPlayerTeam')
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce(mockExistingTeam as any)
+
+    const create400Error = new ClientResponseError({
+      status: 400,
+      data: {},
+      message: 'Failed to create record.',
+    })
+
+    const createSpy = vi.fn().mockRejectedValue(create400Error)
+    vi.spyOn(pb, 'collection').mockImplementation(
+      (name: string) =>
+        ({
+          create: createSpy,
+        }) as any,
+    )
+
+    const result = await f1Service.initializeCustomTeam(
+      mockUserId,
+      'Minha Escuderia',
+      'Ferrari',
+      '#FF0000',
+    )
+
+    expect(createSpy).toHaveBeenCalled()
+    expect(getPlayerTeamSpy).toHaveBeenCalledTimes(2)
+    expect(result).toEqual(mockExistingTeam)
+  })
+
+  it('initializeCareerWithConfig fallback recovers existing team when pb.create throws 400', async () => {
+    const getPlayerTeamSpy = vi
+      .spyOn(f1Service, 'getPlayerTeam')
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce(mockExistingTeam as any)
+
+    const create400Error = new ClientResponseError({
+      status: 400,
+      data: {},
+      message: 'Failed to create record.',
+    })
+
+    const createSpy = vi.fn().mockRejectedValue(create400Error)
+    vi.spyOn(pb, 'collection').mockImplementation(
+      (name: string) =>
+        ({
+          create: createSpy,
+        }) as any,
+    )
+
+    const mockWizardConfig: any = {
+      manager: { name: 'Chefe', nationality: 'Brasil', age: 40 },
+      managerProfile: { id: 'strategist', title: 'Estrategista' },
+      universeType: 'championship_2026',
+      playerTeam: { isCustom: false, teamKey: 'audi' },
+      selectedTeams: [{ key: 'audi', name: 'Audi F1 Team', engine: 'Audi', strength: 86 }],
+      careerSettings: {},
+    }
+
+    const result = await f1Service.initializeCareerWithConfig(mockUserId, mockWizardConfig)
+
+    expect(createSpy).toHaveBeenCalled()
+    expect(getPlayerTeamSpy).toHaveBeenCalledTimes(2)
+    expect(result).toEqual(mockExistingTeam)
+  })
+
   it('initializeCustomTeam reuses existing team if user already has one without calling pb.create', async () => {
     vi.spyOn(f1Service, 'getPlayerTeam').mockResolvedValue(mockExistingTeam as any)
 
