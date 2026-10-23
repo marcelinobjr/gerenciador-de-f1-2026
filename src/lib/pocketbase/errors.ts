@@ -25,24 +25,5 @@ export function getErrorMessage(error: unknown): string {
     return error instanceof Error ? error.message : 'An unexpected error occurred.'
   }
   const msgs = Object.values(extractFieldErrors(error))
-  return msgs.length > 0 ? msgs.join(' ') : error.message || 'An unexpected error occurred.'
-}
-
-export function formatTeamCreationError(error: unknown, hasExistingTeam = false): string {
-  if (hasExistingTeam) {
-    return 'Você já possui uma equipe vinculada à sua conta. Utilize a opção "Carregar Carreira" para continuar seu progresso.'
-  }
-  if (error instanceof ClientResponseError) {
-    const fieldErrors = extractFieldErrors(error)
-    if (Object.keys(fieldErrors).length > 0) {
-      return Object.entries(fieldErrors)
-        .map(([field, msg]) => `${field}: ${msg}`)
-        .join('; ')
-    }
-    if (error.status === 400) {
-      return 'Não foi possível registrar a equipe. Se você já possui uma carreira, selecione "Carregar Carreira" ou tente novamente.'
-    }
-    return error.message || 'Erro inesperado ao registrar equipe.'
-  }
-  return error instanceof Error ? error.message : 'Erro inesperado ao criar escuderia.'
+  return msgs.length > 0 ? msgs.join(' ') : (error.message || 'An unexpected error occurred.')
 }
