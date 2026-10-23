@@ -28,17 +28,23 @@ export function getErrorMessage(error: unknown): string {
   return msgs.length > 0 ? msgs.join(' ') : error.message || 'An unexpected error occurred.'
 }
 
-export function formatTeamCreationError(error: unknown, userAlreadyHasTeam = false): string {
-  if (userAlreadyHasTeam) {
+export function formatTeamCreationError(error: unknown, hasExistingTeam = false): string {
+  if (hasExistingTeam) {
     return 'Não foi possível criar a equipe — você já possui uma equipe nesta carreira.'
   }
-  if (error instanceof ClientResponseError && error.status === 400) {
+  if (error instanceof ClientResponseError) {
     const fieldErrors = extractFieldErrors(error)
-    const values = Object.values(fieldErrors)
-    if (values.length > 0) {
-      return values.join(' ')
+    const fieldMsg = Object.values(fieldErrors).filter(Boolean).join(' ')
+    if (fieldMsg) {
+      return `Falha ao registrar equipe: ${fieldMsg}`
     }
-    return 'Falha ao registrar equipe: você já possui uma equipe nesta carreira ou houve conflito de dados.'
+    if (error.status === 400) {
+      return 'Falha ao registrar equipe: você já possui uma equipe nesta carreira ou houve conflito de dados.'
+    }
+    return `Falha ao registrar equipe: ${error.message || 'Erro desconhecido'}`
   }
-  return getErrorMessage(error)
+  if (error instanceof Error) {
+    return `Falha ao registrar equipe: ${error.message}`
+  }
+  return 'Falha ao registrar equipe: você já possui uma equipe nesta carreira ou houve conflito de dados.'
 }
