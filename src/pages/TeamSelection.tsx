@@ -92,9 +92,7 @@ export default function TeamSelectionPage() {
         } catch (e) {
           console.warn('[TeamSelectionPage] Erro ao verificar equipe existente:', e)
           if (isMounted) {
-            setCheckError(
-              'Instabilidade ao conectar com os servidores de carreira. Verifique sua conexão antes de criar uma equipe.',
-            )
+            setCheckError('Não foi possível verificar sua carreira — Tentar novamente')
           }
         } finally {
           if (isMounted) {
@@ -110,6 +108,40 @@ export default function TeamSelectionPage() {
       isMounted = false
     }
   }, [user?.id, team, refreshTeamAndSeason])
+
+  // Função de retentativa manual ao verificar equipe existente
+  const handleRetryCheckTeam = async () => {
+    setCheckError(null)
+    setIsCheckingTeam(true)
+    try {
+      const effectiveUserId =
+        user?.id || (await import('@/lib/pocketbase/client')).default.authStore.record?.id
+      if (effectiveUserId) {
+        const res = await f1Service.getPlayerTeam(effectiveUserId)
+        setExistingUserTeam(res)
+        if (res) {
+          await refreshTeamAndSeason()
+          toast({
+            title: `Carreira Carregada: ${res.name}`,
+            description: 'Sua equipe foi verificada com sucesso.',
+          })
+          navigate('/', { replace: true })
+          return
+        }
+      }
+    } catch (e: any) {
+      console.warn('[handleRetryCheckTeam] Falha na retentativa:', e)
+      setCheckError('Não foi possível verificar sua carreira — Tentar novamente')
+      toast({
+        variant: 'destructive',
+        title: 'Falha na Conexão',
+        description:
+          'Não foi possível verificar sua carreira nos servidores. Toque em "Tentar novamente".',
+      })
+    } finally {
+      setIsCheckingTeam(false)
+    }
+  }
 
   // Função helper de navegação direta à carreira sem nenhum POST
   const handleLoadExistingCareer = async (targetTeam?: any) => {
@@ -204,16 +236,14 @@ export default function TeamSelectionPage() {
     try {
       preExisting = await f1Service.getPlayerTeam(effectiveUserId)
     } catch (queryErr) {
-      // Falha na verificação prévia NÃO segue para criação! NUNCA chama create() após falha de consulta.
+      // Falha na verificação prévia NÃO segue para criação! NUNCA trata erro como sem equipe
       setIsSubmitting(false)
-      setCheckError(
-        'Não foi possível verificar sua carreira existente devido a uma falha de conexão.',
-      )
+      setCheckError('Não foi possível verificar sua carreira — Tentar novamente')
       toast({
         variant: 'destructive',
         title: 'Falha de Conexão',
         description:
-          'Não foi possível verificar suas equipes existentes. Toque em "Tentar Novamente" ou "Carregar Carreira".',
+          'Não foi possível verificar sua carreira nos servidores. Toque em "Tentar novamente".',
       })
       return
     }
@@ -386,14 +416,12 @@ export default function TeamSelectionPage() {
     } catch (queryErr) {
       // Falha na verificação prévia NÃO segue para criação! NUNCA chama create() após falha de consulta.
       setIsSubmitting(false)
-      setCheckError(
-        'Não foi possível verificar sua carreira existente devido a uma falha de conexão.',
-      )
+      setCheckError('Não foi possível verificar sua carreira — Tentar novamente')
       toast({
         variant: 'destructive',
         title: 'Falha de Conexão',
         description:
-          'Não foi possível verificar suas equipes existentes. Toque em "Tentar Novamente" ou "Carregar Carreira".',
+          'Não foi possível verificar sua carreira nos servidores. Toque em "Tentar novamente".',
       })
       return
     }
@@ -536,14 +564,24 @@ export default function TeamSelectionPage() {
                   <AlertCircle className="w-4 h-4 text-amber-700 shrink-0" />
                   <span>{checkError}</span>
                 </div>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => handleLoadExistingCareer(activeCareerTeam)}
-                  className="text-xs h-8 bg-white border-amber-300 text-amber-900 hover:bg-amber-100 shrink-0"
-                >
-                  Continuar mesmo assim
-                </Button>
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleRetryCheckTeam}
+                    disabled={isCheckingTeam}
+                    className="text-xs h-8 bg-white border-amber-300 text-amber-900 hover:bg-amber-100 shrink-0"
+                  >
+                    {isCheckingTeam ? 'Verificando...' : 'Tentar novamente'}
+                  </Button>
+                  <Button
+                    size="sm"
+                    onClick={() => handleLoadExistingCareer(activeCareerTeam)}
+                    className="text-xs h-8 bg-emerald-600 hover:bg-emerald-700 text-white font-bold shrink-0"
+                  >
+                    Carregar Carreira
+                  </Button>
+                </div>
               </div>
             )}
 
@@ -666,30 +704,11 @@ export default function TeamSelectionPage() {
                   <Button
                     variant="outline"
                     size="sm"
-                    onClick={async () => {
-                      setCheckError(null)
-                      setIsCheckingTeam(true)
-                      try {
-                        const effectiveUserId =
-                          user?.id ||
-                          (await import('@/lib/pocketbase/client')).default.authStore.record?.id
-                        if (effectiveUserId) {
-                          const res = await f1Service.getPlayerTeam(effectiveUserId)
-                          setExistingUserTeam(res)
-                          if (res) await refreshTeamAndSeason()
-                        }
-                      } catch (e) {
-                        setCheckError(
-                          'Tentativa de conexão falhou. Verifique sua rede e tente novamente.',
-                        )
-                      } finally {
-                        setIsCheckingTeam(false)
-                      }
-                    }}
+                    onClick={handleRetryCheckTeam}
                     disabled={isCheckingTeam}
                     className="text-xs h-8 bg-white border-amber-300 text-amber-900 hover:bg-amber-100"
                   >
-                    {isCheckingTeam ? 'Conectando...' : 'Tentar Novamente'}
+                    {isCheckingTeam ? 'Conectando...' : 'Tentar novamente'}
                   </Button>
                   {(existingUserTeam || team) && (
                     <Button

@@ -8,7 +8,7 @@ import { canonicalPowerUnitIntegrationService } from '@/services/canonicalPowerU
 import { canonicalCarRatingsAdapter } from '@/lib/canonical-adapters'
 import { resolveCanonicalCareerId } from '@/lib/canonical-career-id'
 
-export type CareerPhase = 'loading' | 'auth' | 'lobby' | 'career'
+export type CareerPhase = 'loading' | 'auth' | 'lobby' | 'career' | 'error'
 
 interface AuthContextType {
   user: RecordModel | null
@@ -16,6 +16,7 @@ interface AuthContextType {
   season: SeasonModel | null
   isLoading: boolean
   careerPhase: CareerPhase
+  loadError?: string | null
   refreshTeamAndSeason: () => Promise<void>
   resetGame: () => Promise<void>
   login: (email: string, pass: string) => Promise<TeamModel | null>
@@ -31,12 +32,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [team, setTeam] = useState<TeamModel | null>(null)
   const [season, setSeason] = useState<SeasonModel | null>(null)
   const [isLoading, setIsLoading] = useState(true)
+  const [loadError, setLoadError] = useState<string | null>(null)
 
   const loadUserData = async (currentUserId: string): Promise<TeamModel | null> => {
     let resolvedTeam: TeamModel | null = null
     try {
       resolvedTeam = await f1Service.getPlayerTeam(currentUserId)
       setTeam(resolvedTeam)
+      setLoadError(null)
       if (resolvedTeam?.pitstop_center_level) {
         setActivePlayerPitstopCenterLevel(resolvedTeam.pitstop_center_level)
       }
@@ -86,9 +89,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       } else {
         setSeason(null)
       }
-    } catch (e) {
+    } catch (e: any) {
       console.error('[AuthProvider] Erro ao carregar dados do usuário:', e)
-      setTeam(null)
+      // BUG-SETUP-LOOP-01A: Se a consulta falhou com erro (não lista vazia com sucesso),
+      // registra o erro para não tratar erro de rede/servidor como "sem equipe"
+      setLoadError(e?.message || 'Falha ao conectar com os servidores de carreira.')
+      // Mantém o team anterior se já existia em memória, não força null
       setSeason(null)
     }
     return resolvedTeam
@@ -146,13 +152,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   // Estado derivado careerPhase de acordo com as regras:
   // - loading enquanto usuário/equipe/temporada ainda estiverem sendo carregados
   // - auth quando não houver usuário autenticado
-  // - lobby quando houver usuário autenticado, mas não houver equipe/carreira
+  // - error quando a consulta de equipe falhou com erro (evita loop /setup)
+  // - lobby quando houver usuário autenticado confirmado SEM equipe (consulta bem-sucedida retornou vazio)
   // - career quando houver usuário + equipe válidos
   let careerPhase: CareerPhase = 'loading'
   if (isLoading) {
     careerPhase = 'loading'
   } else if (!user) {
     careerPhase = 'auth'
+  } else if (loadError && !team) {
+    careerPhase = 'error'
   } else if (!team) {
     careerPhase = 'lobby'
   } else {
@@ -239,6 +248,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setUser(null)
     setTeam(null)
     setSeason(null)
+    setLoadError(null)
   }
 
   return (
@@ -249,6 +259,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         season,
         isLoading,
         careerPhase,
+        loadError,
         refreshTeamAndSeason,
         resetGame,
         login,

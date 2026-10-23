@@ -129,8 +129,8 @@ export const f1Service = {
     if (!userId) return null
     const safeUserId = userId.replace(/"/g, '')
     // Busca direta pelo user_id do usuário autenticado com filtro de equipe ativa (não arquivada)
-    // Suporta tanto is_archived = false quanto is_archived = null/vazio (registros legados)
-    const activeFilter = `user_id = "${safeUserId}" && (is_archived = false || is_archived = null)`
+    // is_archived != true cobre false e null/vazio (sintaxe válida PocketBase)
+    const activeFilter = `user_id = "${safeUserId}" && is_archived != true`
     let records
     try {
       records = await pb.collection('teams').getList<TeamModel>(1, 1, {
@@ -143,7 +143,7 @@ export const f1Service = {
         try {
           const authUserId = pb.authStore.record.id.replace(/"/g, '')
           records = await pb.collection('teams').getList<TeamModel>(1, 1, {
-            filter: `user_id = "${authUserId}" && (is_archived = false || is_archived = null)`,
+            filter: `user_id = "${authUserId}" && is_archived != true`,
             sort: '-created',
           })
         } catch (_) {
@@ -164,7 +164,7 @@ export const f1Service = {
       try {
         const authUserId = pb.authStore.record.id.replace(/"/g, '')
         const authRecords = await pb.collection('teams').getList<TeamModel>(1, 1, {
-          filter: `user_id = "${authUserId}" && (is_archived = false || is_archived = null)`,
+          filter: `user_id = "${authUserId}" && is_archived != true`,
           sort: '-created',
         })
         team = authRecords.items[0] || null

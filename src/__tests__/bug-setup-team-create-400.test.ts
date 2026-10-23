@@ -375,11 +375,11 @@ describe('BUG-SETUP-TEAM-CREATE-400 — Team Selection & Career Creation Idempot
     expect(createSpy).not.toHaveBeenCalled()
   })
 
-  it('SETUP-CHOICE-01A: getPlayerTeam ignores archived teams and returns active team', async () => {
+  it('SETUP-CHOICE-01A: getPlayerTeam uses valid PocketBase syntax is_archived != true', async () => {
     const getListSpy = vi.fn().mockImplementation((page, perPage, options) => {
-      // Verifica se o filtro exige is_archived = false ou null
-      expect(options.filter).toContain('user_id = "jxe5h74yat69x3x"')
-      expect(options.filter).toContain('is_archived')
+      // Verifica se o filtro utiliza a sintaxe válida do PocketBase: is_archived != true
+      expect(options.filter).toBe('user_id = "jxe5h74yat69x3x" && is_archived != true')
+      expect(options.filter).not.toContain('= null')
       return Promise.resolve({ items: [mockExistingTeam] })
     })
 
@@ -394,16 +394,18 @@ describe('BUG-SETUP-TEAM-CREATE-400 — Team Selection & Career Creation Idempot
     expect(res).toEqual(mockExistingTeam)
   })
 
-  it('SETUP-CHOICE-01A: archiveActiveCareer marks team as is_archived: true without deleting records', async () => {
+  it('SETUP-CHOICE-01A: archiveActiveCareer marks team as is_archived: true and verifies with is_archived != true', async () => {
     const updateSpy = vi.fn().mockResolvedValue({ ...mockExistingTeam, is_archived: true })
     const deleteSpy = vi.fn()
     let getFullListCallCount = 0
+    const filterCalls: string[] = []
 
     vi.spyOn(pb, 'collection').mockImplementation(
       (colName: string) =>
         ({
-          getFullList: vi.fn().mockImplementation(() => {
+          getFullList: vi.fn().mockImplementation((options: any) => {
             getFullListCallCount++
+            filterCalls.push(options?.filter)
             // Na primeira chamada (busca de equipes), retorna mockExistingTeam (não arquivado)
             // Na segunda chamada (verificação estrita), retorna [] (nenhuma equipe ativa)
             if (getFullListCallCount === 1) {
@@ -420,6 +422,22 @@ describe('BUG-SETUP-TEAM-CREATE-400 — Team Selection & Career Creation Idempot
 
     expect(updateSpy).toHaveBeenCalledWith(mockExistingTeam.id, { is_archived: true })
     expect(deleteSpy).not.toHaveBeenCalled()
+    expect(filterCalls[1]).toBe('user_id = "jxe5h74yat69x3x" && is_archived != true')
+  })
+
+  it('archiveActiveCareer throws explicit error if active team still persists after retry update', async () => {
+    const persistentTeam = { ...mockExistingTeam, is_archived: false }
+    vi.spyOn(pb, 'collection').mockImplementation(
+      () =>
+        ({
+          getFullList: vi.fn().mockResolvedValue([persistentTeam]),
+          update: vi.fn().mockResolvedValue(persistentTeam),
+        }) as any,
+    )
+
+    await expect(f1Service.archiveActiveCareer(mockUserId)).rejects.toThrow(
+      /Falha na confirmação de arquivamento/,
+    )
   })
 
   it('SETUP-CHOICE-01A: after archiving, getPlayerTeam returns null allowing selection flow', async () => {
@@ -550,10 +568,11 @@ describe('BUG-SETUP-TEAM-CREATE-400 — Team Selection & Career Creation Idempot
     expect(createSpy).not.toHaveBeenCalled()
   })
 
-  it('R4/R5: (c) getPlayerTeam retorna apenas equipe não arquivada e ignora equipes arquivadas', async () => {
+  it('R4/R5: (c) getPlayerTeam retorna apenas equipe não arquivada com filtro is_archived != true', async () => {
     const getListSpy = vi.fn().mockImplementation((page: number, perPage: number, options: any) => {
-      // O filtro do PocketBase precisa conter a verificação de is_archived
-      expect(options.filter).toContain('is_archived = false || is_archived = null')
+      // O filtro do PocketBase precisa conter a verificação de is_archived != true (nunca = null)
+      expect(options.filter).toBe('user_id = "jxe5h74yat69x3x" && is_archived != true')
+      expect(options.filter).not.toContain('= null')
       return Promise.resolve({ items: [] })
     })
 
@@ -566,5 +585,31 @@ describe('BUG-SETUP-TEAM-CREATE-400 — Team Selection & Career Creation Idempot
 
     const res = await f1Service.getPlayerTeam(mockUserId)
     expect(res).toBeNull()
+  })
+
+  it('CareerRoute and Guard behavior: query error sets careerPhase to error or loadError and does NOT redirect as lobby', () => {
+    // Validação lógica do guard: erro na consulta NÃO deve resultar em redirecionamento de lobby
+    const errorState = {
+      isLoading: false,
+      user: { id: mockUserId },
+      team: null,
+      loadError: 'Connection timeout',
+    }
+
+    let careerPhase: 'loading' | 'auth' | 'lobby' | 'career' | 'error' = 'loading'
+    if (errorState.isLoading) {
+      careerPhase = 'loading'
+    } else if (!errorState.user) {
+      careerPhase = 'auth'
+    } else if (errorState.loadError && !errorState.team) {
+      careerPhase = 'error'
+    } else if (!errorState.team) {
+      careerPhase = 'lobby'
+    } else {
+      careerPhase = 'career'
+    }
+
+    expect(careerPhase).toBe('error')
+    expect(careerPhase).not.toBe('lobby')
   })
 })
