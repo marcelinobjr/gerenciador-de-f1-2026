@@ -28,31 +28,21 @@ export function getErrorMessage(error: unknown): string {
   return msgs.length > 0 ? msgs.join(' ') : error.message || 'An unexpected error occurred.'
 }
 
-/**
- * Formata mensagem de erro na criação de equipe (BUG-SETUP-TEAM-CREATE-400).
- * Se o usuário já possui equipe vinculada ou o erro indica duplicidade/400 de unicidade,
- * retorna instrução acionável e amigável.
- */
-export function formatTeamCreationError(error: unknown, hasExistingTeam?: boolean): string {
+export function formatTeamCreationError(error: unknown, hasExistingTeam = false): string {
   if (hasExistingTeam) {
-    return 'Você já possui uma equipe cadastrada. Carregue sua carreira existente ou arquive-a para iniciar uma nova.'
+    return 'Você já possui uma equipe vinculada à sua conta. Utilize a opção "Carregar Carreira" para continuar seu progresso.'
   }
-
   if (error instanceof ClientResponseError) {
+    const fieldErrors = extractFieldErrors(error)
+    if (Object.keys(fieldErrors).length > 0) {
+      return Object.entries(fieldErrors)
+        .map(([field, msg]) => `${field}: ${msg}`)
+        .join('; ')
+    }
     if (error.status === 400) {
-      const fieldErrors = extractFieldErrors(error)
-      if (fieldErrors.user_id) {
-        return 'Sua conta já está associada a uma carreira ativa nesta temporada.'
-      }
-      const general = getErrorMessage(error)
-      return general || 'Dados inválidos ao tentar criar a equipe. Verifique as informações.'
+      return 'Não foi possível registrar a equipe. Se você já possui uma carreira, selecione "Carregar Carreira" ou tente novamente.'
     }
-    if (error.status === 0 || error.isAbort) {
-      return 'Conexão interrompida. Verifique sua internet e tente novamente.'
-    }
+    return error.message || 'Erro inesperado ao registrar equipe.'
   }
-
-  return error instanceof Error
-    ? error.message
-    : 'Não foi possível concluir o registro da escuderia. Tente novamente.'
+  return error instanceof Error ? error.message : 'Erro inesperado ao criar escuderia.'
 }
