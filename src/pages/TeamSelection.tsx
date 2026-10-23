@@ -52,33 +52,46 @@ export default function TeamSelectionPage() {
 
   const [activeTab, setActiveTab] = useState<'existing' | 'custom'>('existing')
 
-  // Se o usuário autenticado já possui equipe, redireciona de imediato para a carreira
+  // Estado local para equipe existente pré-carregada e estado de erro de verificação prévia
+  const [existingUserTeam, setExistingUserTeam] = useState<any>(team || null)
+  const [isCheckingTeam, setIsCheckingTeam] = useState(false)
+  const [checkError, setCheckError] = useState<string | null>(null)
+
+  // Se o usuário autenticado já possui equipe (via useAuth().team ou consulta), atualiza estado e redireciona
   React.useEffect(() => {
     let isMounted = true
 
     async function checkExistingTeam() {
       if (team) {
-        toast({
-          title: 'Carreira Carregada',
-          description: `Você já está no comando da ${team.name}. Redirecionando para o painel...`,
-        })
-        navigate('/', { replace: true })
+        setExistingUserTeam(team)
+        setCheckError(null)
         return
       }
 
-      if (user?.id) {
+      const effectiveUserId =
+        user?.id || (await import('@/lib/pocketbase/client')).default.authStore.record?.id
+      if (effectiveUserId) {
+        setIsCheckingTeam(true)
         try {
-          const existing = await f1Service.getPlayerTeam(user.id)
-          if (existing && isMounted) {
-            await refreshTeamAndSeason()
-            toast({
-              title: 'Carreira Encontrada',
-              description: `Equipe ${existing.name} já vinculada à sua conta. Redirecionando...`,
-            })
-            navigate('/', { replace: true })
+          const existing = await f1Service.getPlayerTeam(effectiveUserId)
+          if (isMounted) {
+            setExistingUserTeam(existing)
+            setCheckError(null)
+            if (existing) {
+              await refreshTeamAndSeason()
+            }
           }
         } catch (e) {
           console.warn('[TeamSelectionPage] Erro ao verificar equipe existente:', e)
+          if (isMounted) {
+            setCheckError(
+              'Instabilidade ao conectar com os servidores de carreira. Verifique sua conexão antes de criar uma equipe.',
+            )
+          }
+        } finally {
+          if (isMounted) {
+            setIsCheckingTeam(false)
+          }
         }
       }
     }
@@ -88,7 +101,24 @@ export default function TeamSelectionPage() {
     return () => {
       isMounted = false
     }
-  }, [user?.id, team, navigate, refreshTeamAndSeason])
+  }, [user?.id, team, refreshTeamAndSeason])
+
+  // Função helper de navegação direta à carreira sem nenhum POST
+  const handleLoadExistingCareer = async (targetTeam?: any) => {
+    const t = targetTeam || existingUserTeam || team
+    try {
+      await refreshTeamAndSeason()
+    } catch (_) {
+      // ignore
+    }
+    toast({
+      title: 'Carreira Carregada',
+      description: t?.name
+        ? `Acessando o comando da ${t.name}...`
+        : 'Acessando a central de comando da sua carreira...',
+    })
+    navigate('/', { replace: true })
+  }
 
   // Selected existing team for confirmation modal
   const [selectedOfficialTeam, setSelectedOfficialTeam] = useState<OfficialGridTeam | null>(null)
@@ -105,24 +135,47 @@ export default function TeamSelectionPage() {
   // Handle selecting an official team
   const handleConfirmOfficial = async () => {
     if (!selectedOfficialTeam) return
+
+    // Se o usuário já possui equipe ativa (via state ou auth), redireciona direto sem POST
+    const activeKnownTeam = existingUserTeam || team
+    if (activeKnownTeam) {
+      handleLoadExistingCareer(activeKnownTeam)
+      return
+    }
+
     const effectiveUserId =
       user?.id || (await import('@/lib/pocketbase/client')).default.authStore.record?.id
     if (!effectiveUserId) return
 
     setIsSubmitting(true)
-    try {
-      // (a) Verificação prévia síncrona/imediata por user_id do usuário AUTENTICADO dentro do clique
-      const preExisting = await f1Service.getPlayerTeam(effectiveUserId)
-      if (preExisting) {
-        await refreshTeamAndSeason()
-        toast({
-          title: `Carreira Ativa: ${preExisting.name}`,
-          description: `Você já possui a equipe ${preExisting.name} vinculada à sua conta. Redirecionando para a central de comando...`,
-        })
-        navigate('/', { replace: true })
-        return
-      }
 
+    // Guard fail-safe: verificação prévia explícita com tratamento de erro de consulta
+    let preExisting = null
+    try {
+      preExisting = await f1Service.getPlayerTeam(effectiveUserId)
+    } catch (queryErr) {
+      // Falha na verificação prévia NÃO segue para criação! NUNCA chama create() após falha de consulta.
+      setIsSubmitting(false)
+      setCheckError(
+        'Não foi possível verificar sua carreira existente devido a uma falha de conexão.',
+      )
+      toast({
+        variant: 'destructive',
+        title: 'Falha de Conexão',
+        description:
+          'Não foi possível verificar suas equipes existentes. Toque em "Tentar Novamente" ou "Carregar Carreira".',
+      })
+      return
+    }
+
+    if (preExisting) {
+      setExistingUserTeam(preExisting)
+      setIsSubmitting(false)
+      handleLoadExistingCareer(preExisting)
+      return
+    }
+
+    try {
       const activeTeam = await f1Service.initializeOfficialTeam(
         effectiveUserId,
         selectedOfficialTeam.key,
@@ -178,13 +231,14 @@ export default function TeamSelectionPage() {
           : `Titulares: ${selectedOfficialTeam.driver1.name} e ${selectedOfficialTeam.driver2.name} | Reserva: ${selectedOfficialTeam.reserveDriver.name}`,
       })
 
-      navigate('/')
+      navigate('/', { replace: true })
     } catch (err: any) {
-      // (b) Captura de erro (incluindo 400) com fallback transparente de reconsulta e reuso da equipe existente
+      // Fallback no catch: se um create() disparar e receber 400, reconsultar a equipe existente por user_id, reutilizá-la e redirecionar
       let fallbackTeam = null
       try {
         fallbackTeam = await f1Service.getPlayerTeam(effectiveUserId)
         if (fallbackTeam) {
+          setExistingUserTeam(fallbackTeam)
           await refreshTeamAndSeason()
           toast({
             title: 'Carreira Recuperada',
@@ -195,6 +249,12 @@ export default function TeamSelectionPage() {
         }
       } catch (_) {
         // ignore
+      }
+
+      // Nunca exibir toast vermelho se a equipe já existe
+      if (existingUserTeam || team) {
+        handleLoadExistingCareer(existingUserTeam || team)
+        return
       }
 
       toast({
@@ -210,6 +270,14 @@ export default function TeamSelectionPage() {
   // Handle creating the 12th custom team
   const handleCreateCustom = async (e: React.FormEvent) => {
     e.preventDefault()
+
+    // Se o usuário já possui equipe ativa (via state ou auth), redireciona direto sem POST
+    const activeKnownTeam = existingUserTeam || team
+    if (activeKnownTeam) {
+      handleLoadExistingCareer(activeKnownTeam)
+      return
+    }
+
     const effectiveUserId =
       user?.id || (await import('@/lib/pocketbase/client')).default.authStore.record?.id
     if (!effectiveUserId) return
@@ -237,19 +305,34 @@ export default function TeamSelectionPage() {
 
     setCustomNameError('')
     setIsSubmitting(true)
-    try {
-      // (a) Verificação prévia síncrona/imediata por user_id do usuário AUTENTICADO dentro do clique
-      const preExisting = await f1Service.getPlayerTeam(effectiveUserId)
-      if (preExisting) {
-        await refreshTeamAndSeason()
-        toast({
-          title: `Carreira Ativa: ${preExisting.name}`,
-          description: `Você já possui a equipe ${preExisting.name} vinculada à sua conta. Redirecionando para o painel...`,
-        })
-        navigate('/', { replace: true })
-        return
-      }
 
+    // Guard fail-safe: verificação prévia explícita com tratamento de erro de consulta
+    let preExisting = null
+    try {
+      preExisting = await f1Service.getPlayerTeam(effectiveUserId)
+    } catch (queryErr) {
+      // Falha na verificação prévia NÃO segue para criação! NUNCA chama create() após falha de consulta.
+      setIsSubmitting(false)
+      setCheckError(
+        'Não foi possível verificar sua carreira existente devido a uma falha de conexão.',
+      )
+      toast({
+        variant: 'destructive',
+        title: 'Falha de Conexão',
+        description:
+          'Não foi possível verificar suas equipes existentes. Toque em "Tentar Novamente" ou "Carregar Carreira".',
+      })
+      return
+    }
+
+    if (preExisting) {
+      setExistingUserTeam(preExisting)
+      setIsSubmitting(false)
+      handleLoadExistingCareer(preExisting)
+      return
+    }
+
+    try {
       const activeTeam = await f1Service.initializeCustomTeam(
         effectiveUserId,
         trimmed,
@@ -266,13 +349,14 @@ export default function TeamSelectionPage() {
           : `A ${trimmed} ingressou como a 12ª equipe do grid da F1 2026. Agora contrate seus pilotos no mercado!`,
       })
 
-      navigate(isReused ? '/' : '/team')
+      navigate(isReused ? '/' : '/team', { replace: true })
     } catch (err: any) {
-      // (b) Captura de erro (incluindo 400) com fallback transparente de reconsulta e reuso da equipe existente
+      // Fallback no catch: se um create() disparar e receber 400, reconsultar a equipe existente por user_id, reutilizá-la e redirecionar
       let fallbackTeam = null
       try {
         fallbackTeam = await f1Service.getPlayerTeam(effectiveUserId)
         if (fallbackTeam) {
+          setExistingUserTeam(fallbackTeam)
           await refreshTeamAndSeason()
           toast({
             title: 'Carreira Recuperada',
@@ -283,6 +367,12 @@ export default function TeamSelectionPage() {
         }
       } catch (_) {
         // ignore
+      }
+
+      // Nunca exibir toast vermelho se a equipe já existe
+      if (existingUserTeam || team) {
+        handleLoadExistingCareer(existingUserTeam || team)
+        return
       }
 
       toast({
@@ -340,6 +430,84 @@ export default function TeamSelectionPage() {
             talentos fora do grid e construindo seu legado do zero.
           </p>
         </div>
+
+        {/* Banner de Carreira Existente */}
+        {(existingUserTeam || team) && (
+          <div className="p-4 rounded-xl bg-emerald-50 border border-emerald-300 text-emerald-900 shadow-sm flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+            <div className="flex items-center gap-3">
+              <div className="p-2.5 rounded-lg bg-emerald-600 text-white font-bold">
+                <Building2 className="w-5 h-5" />
+              </div>
+              <div>
+                <span className="text-[11px] uppercase font-mono font-bold text-emerald-700 block">
+                  Carreira Ativa Identificada
+                </span>
+                <h3 className="text-base font-extrabold text-[#0F172A]">
+                  {(existingUserTeam || team).name}
+                </h3>
+                <p className="text-xs text-emerald-800">
+                  Sua conta já possui uma escuderia vinculada para a temporada 2026.
+                </p>
+              </div>
+            </div>
+            <Button
+              onClick={() => handleLoadExistingCareer(existingUserTeam || team)}
+              className="w-full sm:w-auto bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs h-10 px-5 shadow-sm"
+            >
+              Carregar Carreira — {(existingUserTeam || team).name}
+              <ChevronRight className="w-4 h-4 ml-1.5" />
+            </Button>
+          </div>
+        )}
+
+        {/* Aviso de erro ou instabilidade na verificação prévia */}
+        {checkError && (
+          <div className="p-4 rounded-xl bg-amber-50 border border-amber-300 text-amber-900 shadow-sm flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs">
+            <div className="flex items-center gap-2">
+              <AlertCircle className="w-4 h-4 text-amber-700 shrink-0" />
+              <span>{checkError}</span>
+            </div>
+            <div className="flex items-center gap-2 w-full sm:w-auto">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={async () => {
+                  setCheckError(null)
+                  setIsCheckingTeam(true)
+                  try {
+                    const effectiveUserId =
+                      user?.id ||
+                      (await import('@/lib/pocketbase/client')).default.authStore.record?.id
+                    if (effectiveUserId) {
+                      const res = await f1Service.getPlayerTeam(effectiveUserId)
+                      setExistingUserTeam(res)
+                      if (res) await refreshTeamAndSeason()
+                    }
+                  } catch (e) {
+                    setCheckError(
+                      'Tentativa de conexão falhou. Verifique sua rede e tente novamente.',
+                    )
+                  } finally {
+                    setIsCheckingTeam(false)
+                  }
+                }}
+                disabled={isCheckingTeam}
+                className="text-xs h-8 bg-white border-amber-300 text-amber-900 hover:bg-amber-100"
+              >
+                {isCheckingTeam ? 'Conectando...' : 'Tentar Novamente'}
+              </Button>
+              {(existingUserTeam || team) && (
+                <Button
+                  size="sm"
+                  onClick={() => handleLoadExistingCareer(existingUserTeam || team)}
+                  className="text-xs h-8 bg-emerald-600 hover:bg-emerald-700 text-white font-bold"
+                >
+                  Carregar Carreira
+                </Button>
+              )}
+            </div>
+          </div>
+        )}
 
         {/* Selection Tabs */}
         <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as any)} className="w-full">
@@ -475,13 +643,23 @@ export default function TeamSelectionPage() {
                     </CardContent>
 
                     <CardFooter className="pt-2 border-t border-[#E2E8F0]">
-                      <Button
-                        onClick={() => setSelectedOfficialTeam(team)}
-                        className="w-full bg-[#F8FAFC] hover:bg-[#E10600] text-[#0F172A] hover:text-white border border-[#CBD5E1] font-bold text-xs h-9 transition-colors"
-                      >
-                        Assumir {team.name}
-                        <ChevronRight className="w-4 h-4 ml-1" />
-                      </Button>
+                      {existingUserTeam || team ? (
+                        <Button
+                          onClick={() => handleLoadExistingCareer(existingUserTeam || team)}
+                          className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs h-9 transition-colors shadow-xs"
+                        >
+                          Carregar Carreira — {(existingUserTeam || team).name}
+                          <ChevronRight className="w-4 h-4 ml-1" />
+                        </Button>
+                      ) : (
+                        <Button
+                          onClick={() => setSelectedOfficialTeam(team)}
+                          className="w-full bg-[#F8FAFC] hover:bg-[#E10600] text-[#0F172A] hover:text-white border border-[#CBD5E1] font-bold text-xs h-9 transition-colors"
+                        >
+                          Assumir {team.name}
+                          <ChevronRight className="w-4 h-4 ml-1" />
+                        </Button>
+                      )}
                     </CardFooter>
                   </Card>
                 )
@@ -617,15 +795,25 @@ export default function TeamSelectionPage() {
                 </CardContent>
 
                 <CardFooter className="pt-2 border-t border-[#E2E8F0]">
-                  <Button
-                    type="submit"
-                    disabled={isSubmitting}
-                    className="w-full bg-[#00A6FB] hover:bg-[#0090DA] text-white font-bold h-10 shadow-md shadow-sky-200"
-                  >
-                    {isSubmitting
-                      ? 'Homologando nova escuderia...'
-                      : 'Fundar Equipe e Ingressar na F1 2026'}
-                  </Button>
+                  {existingUserTeam || team ? (
+                    <Button
+                      type="button"
+                      onClick={() => handleLoadExistingCareer(existingUserTeam || team)}
+                      className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold h-10 shadow-md"
+                    >
+                      Carregar Carreira — {(existingUserTeam || team).name}
+                    </Button>
+                  ) : (
+                    <Button
+                      type="submit"
+                      disabled={isSubmitting}
+                      className="w-full bg-[#00A6FB] hover:bg-[#0090DA] text-white font-bold h-10 shadow-md shadow-sky-200"
+                    >
+                      {isSubmitting
+                        ? 'Homologando nova escuderia...'
+                        : 'Fundar Equipe e Ingressar na F1 2026'}
+                    </Button>
+                  )}
                 </CardFooter>
               </form>
             </Card>
@@ -707,13 +895,25 @@ export default function TeamSelectionPage() {
             >
               Voltar
             </Button>
-            <Button
-              onClick={handleConfirmOfficial}
-              disabled={isSubmitting}
-              className="bg-[#E10600] hover:bg-[#C60500] text-white font-bold"
-            >
-              {isSubmitting ? 'Configurando...' : 'Confirmar e Assumir Escuderia'}
-            </Button>
+            {existingUserTeam || team ? (
+              <Button
+                onClick={() => {
+                  setSelectedOfficialTeam(null)
+                  handleLoadExistingCareer(existingUserTeam || team)
+                }}
+                className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold"
+              >
+                Carregar Carreira — {(existingUserTeam || team).name}
+              </Button>
+            ) : (
+              <Button
+                onClick={handleConfirmOfficial}
+                disabled={isSubmitting}
+                className="bg-[#E10600] hover:bg-[#C60500] text-white font-bold"
+              >
+                {isSubmitting ? 'Configurando...' : 'Confirmar e Assumir Escuderia'}
+              </Button>
+            )}
           </DialogFooter>
         </DialogContent>
       </Dialog>

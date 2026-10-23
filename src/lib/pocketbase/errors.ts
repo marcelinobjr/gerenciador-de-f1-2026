@@ -28,15 +28,22 @@ export function getErrorMessage(error: unknown): string {
   return msgs.length > 0 ? msgs.join(' ') : error.message || 'An unexpected error occurred.'
 }
 
-export function formatTeamCreationError(error: unknown, hasExistingTeam = false): string {
+export function formatTeamCreationError(error: unknown, hasExistingTeam?: boolean): string {
   if (hasExistingTeam) {
     return 'Não foi possível criar a equipe — você já possui uma equipe nesta carreira.'
   }
+
   if (error instanceof ClientResponseError && error.status === 400) {
-    const rawData = error.response?.data
-    if (!rawData || (typeof rawData === 'object' && Object.keys(rawData).length === 0)) {
-      return 'Não foi possível criar a equipe — sua conta já possui uma equipe nesta carreira ou houve conflito de dados. Recarregue a página ou acesse a central de comando.'
+    const fieldErrors = extractFieldErrors(error)
+    const msgs = Object.values(fieldErrors)
+    if (msgs.length > 0) {
+      return msgs.join(' ')
     }
+    return (
+      'Não foi possível criar a equipe — sua conta já possui uma equipe nesta carreira ou houve conflito de dados. ' +
+      'Recarregue a página ou acesse a central de comando.'
+    )
   }
+
   return getErrorMessage(error)
 }

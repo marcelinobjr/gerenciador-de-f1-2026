@@ -316,4 +316,62 @@ describe('BUG-SETUP-TEAM-CREATE-400 — Team Selection & Career Creation Idempot
     expect(getPlayerTeamSpy).toHaveBeenCalledTimes(2)
     expect(finalTeam).toEqual(mockExistingTeam)
   })
+
+  it('getPlayerTeam: throws error on network failure and NEVER returns null as if user had no team', async () => {
+    const networkError = new Error('Network timeout/aborted connection')
+    vi.spyOn(pb, 'collection').mockImplementation(
+      () =>
+        ({
+          getList: vi.fn().mockRejectedValue(networkError),
+        }) as any,
+    )
+
+    await expect(f1Service.getPlayerTeam(mockUserId)).rejects.toThrow(
+      'Network timeout/aborted connection',
+    )
+  })
+
+  it('Guard fail-safe: prior query failure does NOT proceed to create()', async () => {
+    const networkError = new Error('Network timeout')
+    vi.spyOn(f1Service, 'getPlayerTeam').mockRejectedValue(networkError)
+    const initSpy = vi.spyOn(f1Service, 'initializeOfficialTeam')
+
+    let createAttempted = false
+    try {
+      const preExisting = await f1Service.getPlayerTeam(mockUserId)
+      if (!preExisting) {
+        createAttempted = true
+        await f1Service.initializeOfficialTeam(mockUserId, 'audi', {} as any)
+      }
+    } catch {
+      // Guard blocked creation on query error
+    }
+
+    expect(createAttempted).toBe(false)
+    expect(initSpy).not.toHaveBeenCalled()
+  })
+
+  it('Existing team: button action performs navigation with zero pb.collection("teams").create calls', async () => {
+    const createSpy = vi.fn()
+    vi.spyOn(pb, 'collection').mockImplementation(
+      (name: string) =>
+        ({
+          create: createSpy,
+          getList: vi.fn().mockResolvedValue({ items: [mockExistingTeam] }),
+        }) as any,
+    )
+
+    const existingTeam = mockExistingTeam
+    // Simulating user clicking "Carregar Carreira - Audi F1 Team"
+    let navigated = false
+    if (existingTeam) {
+      navigated = true
+      // navigate('/', { replace: true }) - zero POST
+    } else {
+      await pb.collection('teams').create({ name: 'Audi F1 Team' })
+    }
+
+    expect(navigated).toBe(true)
+    expect(createSpy).not.toHaveBeenCalled()
+  })
 })

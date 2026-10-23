@@ -126,46 +126,62 @@ export const f1Service = {
   },
   // Teams
   async getPlayerTeam(userId: string): Promise<TeamModel | null> {
+    if (!userId) return null
+    const safeUserId = userId.replace(/"/g, '')
+    // Busca direta pelo user_id do usuário autenticado (critério de unicidade do banco)
+    let records
     try {
-      if (!userId) return null
-      const safeUserId = userId.replace(/"/g, '')
-      // Busca direta pelo user_id do usuário autenticado (critério de unicidade do banco)
-      const records = await pb.collection('teams').getList<TeamModel>(1, 1, {
+      records = await pb.collection('teams').getList<TeamModel>(1, 1, {
         filter: `user_id = "${safeUserId}"`,
       })
-      let team = records.items[0] || null
-
-      // Fallback de segurança: se não encontrou com safeUserId mas há usuário no authStore, tentar pelo authStore.id
-      if (!team && pb.authStore.record?.id && pb.authStore.record.id !== safeUserId) {
+    } catch (primaryErr) {
+      // Se a consulta primária falhou (timeout/abort de rede, 500, etc.), tentar com o id do authStore se for diferente
+      if (pb.authStore.record?.id && pb.authStore.record.id !== safeUserId) {
         try {
           const authUserId = pb.authStore.record.id.replace(/"/g, '')
-          const authRecords = await pb.collection('teams').getList<TeamModel>(1, 1, {
+          records = await pb.collection('teams').getList<TeamModel>(1, 1, {
             filter: `user_id = "${authUserId}"`,
           })
-          team = authRecords.items[0] || null
         } catch (_) {
-          // ignore fallback lookup error
+          // Propaga o erro primário original sem mascarar falha de rede como inexistência
+          console.error('Error fetching player team (network/server failure):', primaryErr)
+          throw primaryErr
         }
+      } else {
+        console.error('Error fetching player team (network/server failure):', primaryErr)
+        throw primaryErr
       }
-
-      if (team) {
-        // Enriquecimento transparente de dados técnicos (fallback defensivo sem sobrescrever banco)
-        const enriched = carTechnicalService.ensureTechnicalData(team)
-        if (!team.technical_attributes || !team.calculated_overall) {
-          team.technical_attributes = enriched.technical_attributes
-          team.calculated_overall = enriched.calculated_overall
-          team.balance_delta = enriched.balance_delta
-          team.technical_balance_delta = enriched.balance_delta
-          team.component_ratings = enriched.component_ratings
-        } else if (team.balance_delta === undefined && team.technical_balance_delta !== undefined) {
-          team.balance_delta = team.technical_balance_delta
-        }
-      }
-      return team
-    } catch (e) {
-      console.error('Error fetching player team:', e)
-      return null
     }
+
+    let team = records?.items[0] || null
+
+    // Fallback de segurança: se a consulta retornou com sucesso mas 0 itens, e authStore.id for diferente
+    if (!team && pb.authStore.record?.id && pb.authStore.record.id !== safeUserId) {
+      try {
+        const authUserId = pb.authStore.record.id.replace(/"/g, '')
+        const authRecords = await pb.collection('teams').getList<TeamModel>(1, 1, {
+          filter: `user_id = "${authUserId}"`,
+        })
+        team = authRecords.items[0] || null
+      } catch (_) {
+        // ignore fallback lookup error se a busca primária já retornou com sucesso (lista vazia)
+      }
+    }
+
+    if (team) {
+      // Enriquecimento transparente de dados técnicos (fallback defensivo sem sobrescrever banco)
+      const enriched = carTechnicalService.ensureTechnicalData(team)
+      if (!team.technical_attributes || !team.calculated_overall) {
+        team.technical_attributes = enriched.technical_attributes
+        team.calculated_overall = enriched.calculated_overall
+        team.balance_delta = enriched.balance_delta
+        team.technical_balance_delta = enriched.balance_delta
+        team.component_ratings = enriched.component_ratings
+      } else if (team.balance_delta === undefined && team.technical_balance_delta !== undefined) {
+        team.balance_delta = team.technical_balance_delta
+      }
+    }
+    return team
   },
 
   async getDrivers(): Promise<DriverModel[]> {
@@ -1376,13 +1392,20 @@ export const f1Service = {
           }),
         )
       } catch (createErr: any) {
-        // Fallback idempotente se falhar com 400 (ex: race condition ou unicidade de user_id)
-        const fallbackTeam = await this.getPlayerTeam(effectiveUserId)
-        if (fallbackTeam) {
+        // Fallback idempotente se falhar com 400 ou qualquer erro de conflito: reconsultar por user_id
+        try {
+          const fallbackTeam = await this.getPlayerTeam(effectiveUserId)
+          if (fallbackTeam) {
+            console.warn(
+              `[initializeCareerWithConfig] Erro capturado no create custom (status ${createErr?.status}); equipe existente recuperada por user_id (${fallbackTeam.name}, id: ${fallbackTeam.id}). Reutilizando com sucesso.`,
+            )
+            return fallbackTeam
+          }
+        } catch (fetchErr) {
           console.warn(
-            `[initializeCareerWithConfig] Erro capturado no create custom (status ${createErr?.status}); equipe existente recuperada por user_id (${fallbackTeam.name}, id: ${fallbackTeam.id}). Reutilizando com sucesso.`,
+            '[initializeCareerWithConfig] Falha ao reconsultar equipe após create:',
+            fetchErr,
           )
-          return fallbackTeam
         }
         throw createErr
       }
@@ -1514,13 +1537,20 @@ export const f1Service = {
           }),
         )
       } catch (createErr: any) {
-        // Fallback idempotente se falhar com 400 (ex: race condition ou unicidade de user_id)
-        const fallbackTeam = await this.getPlayerTeam(effectiveUserId)
-        if (fallbackTeam) {
+        // Fallback idempotente se falhar com 400 ou conflito de unicidade de user_id
+        try {
+          const fallbackTeam = await this.getPlayerTeam(effectiveUserId)
+          if (fallbackTeam) {
+            console.warn(
+              `[initializeCareerWithConfig] Erro capturado no create oficial (status ${createErr?.status}); equipe oficial existente recuperada por user_id (${fallbackTeam.name}, id: ${fallbackTeam.id}). Reutilizando com sucesso.`,
+            )
+            return fallbackTeam
+          }
+        } catch (fetchErr) {
           console.warn(
-            `[initializeCareerWithConfig] Erro capturado no create oficial (status ${createErr?.status}); equipe oficial existente recuperada por user_id (${fallbackTeam.name}, id: ${fallbackTeam.id}). Reutilizando com sucesso.`,
+            '[initializeCareerWithConfig] Falha ao reconsultar equipe após create:',
+            fetchErr,
           )
-          return fallbackTeam
         }
         throw createErr
       }
@@ -1749,12 +1779,16 @@ export const f1Service = {
         component_ratings: officialTech.componentRatings,
       })
     } catch (createErr: any) {
-      const fallbackTeam = await this.getPlayerTeam(effectiveUserId)
-      if (fallbackTeam) {
-        console.warn(
-          `[initializeOfficialTeam] Erro capturado ao criar equipe (status ${createErr?.status}). Equipe existente encontrada por user_id (${fallbackTeam.name}, id: ${fallbackTeam.id}). Reutilizando com sucesso.`,
-        )
-        return fallbackTeam
+      try {
+        const fallbackTeam = await this.getPlayerTeam(effectiveUserId)
+        if (fallbackTeam) {
+          console.warn(
+            `[initializeOfficialTeam] Erro capturado ao criar equipe (status ${createErr?.status}). Equipe existente encontrada por user_id (${fallbackTeam.name}, id: ${fallbackTeam.id}). Reutilizando com sucesso.`,
+          )
+          return fallbackTeam
+        }
+      } catch (fetchErr) {
+        console.warn('[initializeOfficialTeam] Falha ao reconsultar equipe após create:', fetchErr)
       }
       throw createErr
     }
@@ -1935,12 +1969,16 @@ export const f1Service = {
         component_ratings: customComponents,
       })
     } catch (createErr: any) {
-      const fallbackTeam = await this.getPlayerTeam(effectiveUserId)
-      if (fallbackTeam) {
-        console.warn(
-          `[initializeCustomTeam] Erro capturado ao criar equipe customizada (status ${createErr?.status}). Equipe existente encontrada por user_id (${fallbackTeam.name}, id: ${fallbackTeam.id}). Reutilizando com sucesso.`,
-        )
-        return fallbackTeam
+      try {
+        const fallbackTeam = await this.getPlayerTeam(effectiveUserId)
+        if (fallbackTeam) {
+          console.warn(
+            `[initializeCustomTeam] Erro capturado ao criar equipe customizada (status ${createErr?.status}). Equipe existente encontrada por user_id (${fallbackTeam.name}, id: ${fallbackTeam.id}). Reutilizando com sucesso.`,
+          )
+          return fallbackTeam
+        }
+      } catch (fetchErr) {
+        console.warn('[initializeCustomTeam] Falha ao reconsultar equipe após create:', fetchErr)
       }
       throw createErr
     }
