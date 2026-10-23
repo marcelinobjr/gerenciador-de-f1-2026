@@ -1,6 +1,8 @@
 import React, { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '@/contexts/AuthContext'
+import pb from '@/lib/pocketbase/client'
+import { TeamModel } from '@/types/f1'
 import { f1Service } from '@/services/f1Service'
 import { OFFICIAL_GRID_TEAMS, OfficialGridTeam, ENGINE_SUPPLIERS } from '@/lib/f1-data'
 import { formatCurrency } from '@/lib/formatters'
@@ -126,7 +128,7 @@ export default function TeamSelectionPage() {
     navigate('/', { replace: true })
   }
 
-  // SETUP-CHOICE-01A: Iniciar nova carreira arquivando a anterior com 100% de preservação
+  // SETUP-CHOICE-01A: Iniciar nova carreira arquivando a anterior com 100% de preservação e verificação estrita
   const handleStartNewCareer = async () => {
     const effectiveUserId =
       user?.id || (await import('@/lib/pocketbase/client')).default.authStore.record?.id
@@ -134,7 +136,17 @@ export default function TeamSelectionPage() {
 
     setIsArchivingCareer(true)
     try {
+      // 1. Executa e aguarda arquivamento persistido
       await f1Service.archiveActiveCareer(effectiveUserId)
+
+      // 2. VERIFICAÇÃO ESTREITA: reconsultar getPlayerTeam para certificar que NÃO há equipe ativa antes de liberar
+      const verifiedActiveTeam = await f1Service.getPlayerTeam(effectiveUserId)
+      if (verifiedActiveTeam) {
+        throw new Error(
+          `A carreira anterior (${verifiedActiveTeam.name}) não pôde ser arquivada no servidor.`,
+        )
+      }
+
       setExistingUserTeam(null)
       setHasStartedNewCareerFlow(true)
       setShowArchiveConfirmDialog(false)
@@ -149,7 +161,9 @@ export default function TeamSelectionPage() {
       toast({
         variant: 'destructive',
         title: 'Falha ao Arquivar Carreira',
-        description: 'Não foi possível arquivar a carreira atual. Tente novamente.',
+        description:
+          err?.message ||
+          'Não foi possível arquivar a carreira atual. A criação de nova equipe foi bloqueada.',
       })
     } finally {
       setIsArchivingCareer(false)
@@ -204,9 +218,15 @@ export default function TeamSelectionPage() {
       return
     }
 
-    if (preExisting && !hasStartedNewCareerFlow) {
+    // Se ainda houver equipe ativa (inclusive se o usuário pulou ou o arquivamento falhou), reusa e NÃO cria duplicata
+    if (preExisting) {
       setExistingUserTeam(preExisting)
       setIsSubmitting(false)
+      toast({
+        title: `Carreira Ativa: ${preExisting.name}`,
+        description:
+          'Você já possui uma equipe ativa vinculada. Reutilizando sua carreira existente.',
+      })
       handleLoadExistingCareer(preExisting)
       return
     }
@@ -287,10 +307,27 @@ export default function TeamSelectionPage() {
         // ignore
       }
 
-      // Nunca exibir toast vermelho se a equipe já existe
-      if (existingUserTeam || team) {
-        handleLoadExistingCareer(existingUserTeam || team)
+      // Fallback: se a equipe já existe em memória ou no contexto, reusa e navega sem erro vermelho na UI
+      const existingAny = existingUserTeam || team
+      if (existingAny) {
+        handleLoadExistingCareer(existingAny)
         return
+      }
+
+      // Tentar obter qualquer equipe do usuário (mesmo arquivada ou recente) antes de mostrar erro vermelho
+      try {
+        const anyUserTeam = await pb.collection('teams').getList<TeamModel>(1, 1, {
+          filter: `user_id = "${effectiveUserId}"`,
+          sort: '-created',
+        })
+        if (anyUserTeam.items[0]) {
+          setExistingUserTeam(anyUserTeam.items[0])
+          await refreshTeamAndSeason()
+          handleLoadExistingCareer(anyUserTeam.items[0])
+          return
+        }
+      } catch {
+        /* intentionally ignored */
       }
 
       toast({
@@ -361,9 +398,15 @@ export default function TeamSelectionPage() {
       return
     }
 
-    if (preExisting && !hasStartedNewCareerFlow) {
+    // Se ainda houver equipe ativa (inclusive se o usuário pulou ou o arquivamento falhou), reusa e NÃO cria duplicata
+    if (preExisting) {
       setExistingUserTeam(preExisting)
       setIsSubmitting(false)
+      toast({
+        title: `Carreira Ativa: ${preExisting.name}`,
+        description:
+          'Você já possui uma equipe ativa vinculada. Reutilizando sua carreira existente.',
+      })
       handleLoadExistingCareer(preExisting)
       return
     }
@@ -405,10 +448,27 @@ export default function TeamSelectionPage() {
         // ignore
       }
 
-      // Nunca exibir toast vermelho se a equipe já existe
-      if (existingUserTeam || team) {
-        handleLoadExistingCareer(existingUserTeam || team)
+      // Fallback: se a equipe já existe em memória ou no contexto, reusa e navega sem erro vermelho na UI
+      const existingAny = existingUserTeam || team
+      if (existingAny) {
+        handleLoadExistingCareer(existingAny)
         return
+      }
+
+      // Tentar obter qualquer equipe do usuário (mesmo arquivada ou recente) antes de mostrar erro vermelho
+      try {
+        const anyUserTeam = await pb.collection('teams').getList<TeamModel>(1, 1, {
+          filter: `user_id = "${effectiveUserId}"`,
+          sort: '-created',
+        })
+        if (anyUserTeam.items[0]) {
+          setExistingUserTeam(anyUserTeam.items[0])
+          await refreshTeamAndSeason()
+          handleLoadExistingCareer(anyUserTeam.items[0])
+          return
+        }
+      } catch {
+        /* intentionally ignored */
       }
 
       toast({

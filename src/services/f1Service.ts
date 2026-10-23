@@ -3393,13 +3393,37 @@ export const f1Service = {
     }
     const safeUserId = userId.replace(/"/g, '')
     try {
-      const activeTeams = await pb.collection('teams').getFullList<TeamModel>({
-        filter: `user_id = "${safeUserId}" && (is_archived = false || is_archived = null)`,
+      // 1. Busca todas as equipes do usuário para garantir que nenhuma permaneça ativa
+      const allUserTeams = await pb.collection('teams').getFullList<TeamModel>({
+        filter: `user_id = "${safeUserId}"`,
       })
-      for (const t of activeTeams) {
+
+      const unarchivedTeams = allUserTeams.filter((t) => t.is_archived !== true)
+      for (const t of unarchivedTeams) {
         await pb.collection('teams').update(t.id, {
           is_archived: true,
         })
+      }
+
+      // 2. Verificação estrita pós-update: reconsultar equipes e garantir 0 equipes ativas
+      const remainingActive = await pb.collection('teams').getFullList<TeamModel>({
+        filter: `user_id = "${safeUserId}" && is_archived != true`,
+      })
+      if (remainingActive.length > 0) {
+        // Tentativa de correção para qualquer equipe ainda ativa
+        for (const rem of remainingActive) {
+          await pb.collection('teams').update(rem.id, {
+            is_archived: true,
+          })
+        }
+        const finalCheck = await pb.collection('teams').getFullList<TeamModel>({
+          filter: `user_id = "${safeUserId}" && is_archived != true`,
+        })
+        if (finalCheck.length > 0) {
+          throw new Error(
+            `Falha na confirmação de arquivamento: ${finalCheck.length} equipe(s) ainda ativa(s).`,
+          )
+        }
       }
     } catch (err) {
       console.error('[archiveActiveCareer] Erro ao arquivar carreira ativa:', err)

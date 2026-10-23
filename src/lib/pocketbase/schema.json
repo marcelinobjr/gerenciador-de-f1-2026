@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-10-23T00:41:14.104Z",
+  "generatedAt": "2026-10-23T00:57:07.299Z",
   "collections": [
     {
       "name": "users",
@@ -470,7 +470,8 @@
       ],
       "indexes": [
         "CREATE INDEX idx_teams_user ON teams (user_id)",
-        "CREATE INDEX `idx_teams_user_archived` ON `teams` (user_id, is_archived)"
+        "CREATE INDEX `idx_teams_user_archived` ON `teams` (user_id, is_archived)",
+        "CREATE UNIQUE INDEX `idx_teams_one_active_per_user` ON `teams` (user_id) WHERE is_archived IS NOT 1 AND user_id != ''"
       ]
     },
     {

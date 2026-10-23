@@ -397,11 +397,20 @@ describe('BUG-SETUP-TEAM-CREATE-400 — Team Selection & Career Creation Idempot
   it('SETUP-CHOICE-01A: archiveActiveCareer marks team as is_archived: true without deleting records', async () => {
     const updateSpy = vi.fn().mockResolvedValue({ ...mockExistingTeam, is_archived: true })
     const deleteSpy = vi.fn()
+    let getFullListCallCount = 0
 
     vi.spyOn(pb, 'collection').mockImplementation(
       (colName: string) =>
         ({
-          getFullList: vi.fn().mockResolvedValue([mockExistingTeam]),
+          getFullList: vi.fn().mockImplementation(() => {
+            getFullListCallCount++
+            // Na primeira chamada (busca de equipes), retorna mockExistingTeam (não arquivado)
+            // Na segunda chamada (verificação estrita), retorna [] (nenhuma equipe ativa)
+            if (getFullListCallCount === 1) {
+              return Promise.resolve([mockExistingTeam])
+            }
+            return Promise.resolve([])
+          }),
           update: updateSpy,
           delete: deleteSpy,
         }) as any,
@@ -418,6 +427,140 @@ describe('BUG-SETUP-TEAM-CREATE-400 — Team Selection & Career Creation Idempot
       (colName: string) =>
         ({
           getList: vi.fn().mockResolvedValue({ items: [] }),
+        }) as any,
+    )
+
+    const res = await f1Service.getPlayerTeam(mockUserId)
+    expect(res).toBeNull()
+  })
+
+  it('R4/R5: (a) Iniciar nova carreira com equipe ativa existente arquiva com verificação e cria nova equipe', async () => {
+    const activeTeam = { ...mockExistingTeam, id: 'team_audi_123', is_archived: false }
+    const newCreatedTeam = { id: 'team_ferrari_456', name: 'Scuderia Ferrari', is_archived: false }
+    const updateSpy = vi.fn().mockResolvedValue({ ...activeTeam, is_archived: true })
+    const createSpy = vi.fn().mockResolvedValue(newCreatedTeam)
+
+    let fullListCalls = 0
+    vi.spyOn(pb, 'collection').mockImplementation(
+      (colName: string) =>
+        ({
+          getFullList: vi.fn().mockImplementation(() => {
+            fullListCalls++
+            if (fullListCalls === 1) return Promise.resolve([activeTeam])
+            return Promise.resolve([]) // verificação: 0 equipes ativas restantes
+          }),
+          getList: vi.fn().mockResolvedValue({ items: [] }),
+          update: updateSpy,
+          create: createSpy,
+          getFirstListItem: vi.fn().mockResolvedValue({ id: 'driver_1' }),
+        }) as any,
+    )
+
+    // Arquivamento verificado
+    await f1Service.archiveActiveCareer(mockUserId)
+    expect(updateSpy).toHaveBeenCalledWith('team_audi_123', { is_archived: true })
+
+    // Criação da nova equipe
+    const created = await f1Service.initializeOfficialTeam(mockUserId, 'ferrari', {
+      name: 'Scuderia Ferrari',
+      color: '#E8002D',
+      engine: 'Ferrari',
+      strength: 88,
+      carLevel: 80,
+      budget: 300000000,
+      driver1: {
+        name: 'Charles Leclerc',
+        nationality: 'Mônaco',
+        age: 28,
+        speed: 92,
+        consistency: 88,
+        rain: 89,
+        defense: 90,
+        salary: 35000000,
+      },
+      driver2: {
+        name: 'Lewis Hamilton',
+        nationality: 'Reino Unido',
+        age: 41,
+        speed: 93,
+        consistency: 91,
+        rain: 94,
+        defense: 92,
+        salary: 45000000,
+      },
+      reserveDriver: {
+        name: 'Oliver Bearman',
+        nationality: 'Reino Unido',
+        age: 20,
+        speed: 82,
+        consistency: 80,
+        rain: 81,
+        defense: 80,
+        salary: 2000000,
+      },
+    })
+
+    expect(created.id).toBe('team_ferrari_456')
+    expect(created.name).toBe('Scuderia Ferrari')
+  })
+
+  it('R4/R5: (b) Segunda equipe ativa no mesmo clique é recusada ou cai no fallback de reuso idempotente', async () => {
+    const existingActive = { ...mockExistingTeam, id: 'team_active_1', is_archived: false }
+    const createSpy = vi.fn().mockRejectedValue({ status: 400, message: 'Failed to create record' })
+
+    vi.spyOn(pb, 'collection').mockImplementation(
+      (colName: string) =>
+        ({
+          getList: vi.fn().mockResolvedValue({ items: [existingActive] }),
+          create: createSpy,
+        }) as any,
+    )
+
+    // initializeOfficialTeam detecta que o usuário já possui equipe ativa e reusa sem chamar create
+    const result = await f1Service.initializeOfficialTeam(mockUserId, 'ferrari', {
+      name: 'Scuderia Ferrari',
+      color: '#E8002D',
+      engine: 'Ferrari',
+      strength: 88,
+      carLevel: 80,
+      budget: 300000000,
+      driver1: {
+        name: 'Charles Leclerc',
+        nationality: 'Mônaco',
+        age: 28,
+        speed: 92,
+        consistency: 88,
+        rain: 89,
+        defense: 90,
+        salary: 35000000,
+      },
+      driver2: {
+        name: 'Lewis Hamilton',
+        nationality: 'Reino Unido',
+        age: 41,
+        speed: 93,
+        consistency: 91,
+        rain: 94,
+        defense: 92,
+        salary: 45000000,
+      },
+    })
+
+    expect(result.id).toBe('team_active_1')
+    expect(createSpy).not.toHaveBeenCalled()
+  })
+
+  it('R4/R5: (c) getPlayerTeam retorna apenas equipe não arquivada e ignora equipes arquivadas', async () => {
+    const getListSpy = vi.fn().mockImplementation((page: number, perPage: number, options: any) => {
+      // O filtro do PocketBase precisa conter a verificação de is_archived
+      expect(options.filter).toContain('is_archived = false || is_archived = null')
+      return Promise.resolve({ items: [] })
+    })
+
+    vi.spyOn(pb, 'collection').mockImplementation(
+      (colName: string) =>
+        ({
+          getList: getListSpy,
         }) as any,
     )
 
