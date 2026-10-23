@@ -128,11 +128,14 @@ export const f1Service = {
   async getPlayerTeam(userId: string): Promise<TeamModel | null> {
     if (!userId) return null
     const safeUserId = userId.replace(/"/g, '')
-    // Busca direta pelo user_id do usuário autenticado (critério de unicidade do banco)
+    // Busca direta pelo user_id do usuário autenticado com filtro de equipe ativa (não arquivada)
+    // Suporta tanto is_archived = false quanto is_archived = null/vazio (registros legados)
+    const activeFilter = `user_id = "${safeUserId}" && (is_archived = false || is_archived = null)`
     let records
     try {
       records = await pb.collection('teams').getList<TeamModel>(1, 1, {
-        filter: `user_id = "${safeUserId}"`,
+        filter: activeFilter,
+        sort: '-created',
       })
     } catch (primaryErr) {
       // Se a consulta primária falhou (timeout/abort de rede, 500, etc.), tentar com o id do authStore se for diferente
@@ -140,7 +143,8 @@ export const f1Service = {
         try {
           const authUserId = pb.authStore.record.id.replace(/"/g, '')
           records = await pb.collection('teams').getList<TeamModel>(1, 1, {
-            filter: `user_id = "${authUserId}"`,
+            filter: `user_id = "${authUserId}" && (is_archived = false || is_archived = null)`,
+            sort: '-created',
           })
         } catch (_) {
           // Propaga o erro primário original sem mascarar falha de rede como inexistência
@@ -160,7 +164,8 @@ export const f1Service = {
       try {
         const authUserId = pb.authStore.record.id.replace(/"/g, '')
         const authRecords = await pb.collection('teams').getList<TeamModel>(1, 1, {
-          filter: `user_id = "${authUserId}"`,
+          filter: `user_id = "${authUserId}" && (is_archived = false || is_archived = null)`,
+          sort: '-created',
         })
         team = authRecords.items[0] || null
       } catch (_) {
@@ -3377,6 +3382,31 @@ export const f1Service = {
 
   // Reset all game progress for the given user, keeping user auth record intact.
   // Rigorously deletes career-scoped records across all collections and unbinds drivers.
+  /**
+   * Arquiva a carreira / equipe ativa atual do usuário (SETUP-CHOICE-01A).
+   * Preserva 100% dos dados: temporadas, resultados, pilotos e histórico oficial 2026 intactos.
+   * Não deleta nada. Apenas marca `is_archived: true` na(s) equipe(s) ativa(s) do usuário.
+   */
+  async archiveActiveCareer(userId: string): Promise<void> {
+    if (!userId) {
+      throw new Error('ID de usuário obrigatório para arquivar carreira.')
+    }
+    const safeUserId = userId.replace(/"/g, '')
+    try {
+      const activeTeams = await pb.collection('teams').getFullList<TeamModel>({
+        filter: `user_id = "${safeUserId}" && (is_archived = false || is_archived = null)`,
+      })
+      for (const t of activeTeams) {
+        await pb.collection('teams').update(t.id, {
+          is_archived: true,
+        })
+      }
+    } catch (err) {
+      console.error('[archiveActiveCareer] Erro ao arquivar carreira ativa:', err)
+      throw err
+    }
+  },
+
   async resetPlayerProgress(userId: string): Promise<void> {
     if (!userId) {
       throw new Error('ID de usuário obrigatório para reiniciar o jogo.')

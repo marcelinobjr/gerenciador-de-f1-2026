@@ -30,6 +30,7 @@ export interface TeamModel {
   strength_rating?: number // 0-10 rating exato do usuário (ex: 10.0, 9.1, 3.7)
   strength_verdict?: string // Parecer textual do usuário
   is_custom?: boolean // true se criada pelo jogador (12ª equipe)
+  is_archived?: boolean // true se a carreira foi arquivada pelo jogador ao iniciar nova carreira
   team_key?: string // chave da equipe se for do grid oficial ('mclaren', 'ferrari', etc)
   reserve_setup_bonus?: boolean // true se o piloto reserva treinou no FP e gerou bônus de setup
   photo?: string // Foto lateral do carro / banner da equipe

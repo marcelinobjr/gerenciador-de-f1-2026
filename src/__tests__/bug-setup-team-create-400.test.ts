@@ -374,4 +374,54 @@ describe('BUG-SETUP-TEAM-CREATE-400 — Team Selection & Career Creation Idempot
     expect(navigated).toBe(true)
     expect(createSpy).not.toHaveBeenCalled()
   })
+
+  it('SETUP-CHOICE-01A: getPlayerTeam ignores archived teams and returns active team', async () => {
+    const getListSpy = vi.fn().mockImplementation((page, perPage, options) => {
+      // Verifica se o filtro exige is_archived = false ou null
+      expect(options.filter).toContain('user_id = "jxe5h74yat69x3x"')
+      expect(options.filter).toContain('is_archived')
+      return Promise.resolve({ items: [mockExistingTeam] })
+    })
+
+    vi.spyOn(pb, 'collection').mockImplementation(
+      (colName: string) =>
+        ({
+          getList: getListSpy,
+        }) as any,
+    )
+
+    const res = await f1Service.getPlayerTeam(mockUserId)
+    expect(res).toEqual(mockExistingTeam)
+  })
+
+  it('SETUP-CHOICE-01A: archiveActiveCareer marks team as is_archived: true without deleting records', async () => {
+    const updateSpy = vi.fn().mockResolvedValue({ ...mockExistingTeam, is_archived: true })
+    const deleteSpy = vi.fn()
+
+    vi.spyOn(pb, 'collection').mockImplementation(
+      (colName: string) =>
+        ({
+          getFullList: vi.fn().mockResolvedValue([mockExistingTeam]),
+          update: updateSpy,
+          delete: deleteSpy,
+        }) as any,
+    )
+
+    await f1Service.archiveActiveCareer(mockUserId)
+
+    expect(updateSpy).toHaveBeenCalledWith(mockExistingTeam.id, { is_archived: true })
+    expect(deleteSpy).not.toHaveBeenCalled()
+  })
+
+  it('SETUP-CHOICE-01A: after archiving, getPlayerTeam returns null allowing selection flow', async () => {
+    vi.spyOn(pb, 'collection').mockImplementation(
+      (colName: string) =>
+        ({
+          getList: vi.fn().mockResolvedValue({ items: [] }),
+        }) as any,
+    )
+
+    const res = await f1Service.getPlayerTeam(mockUserId)
+    expect(res).toBeNull()
+  })
 })

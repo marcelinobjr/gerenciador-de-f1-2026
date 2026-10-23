@@ -28,22 +28,31 @@ export function getErrorMessage(error: unknown): string {
   return msgs.length > 0 ? msgs.join(' ') : error.message || 'An unexpected error occurred.'
 }
 
+/**
+ * Formata mensagem de erro na criação de equipe (BUG-SETUP-TEAM-CREATE-400).
+ * Se o usuário já possui equipe vinculada ou o erro indica duplicidade/400 de unicidade,
+ * retorna instrução acionável e amigável.
+ */
 export function formatTeamCreationError(error: unknown, hasExistingTeam?: boolean): string {
   if (hasExistingTeam) {
-    return 'Não foi possível criar a equipe — você já possui uma equipe nesta carreira.'
+    return 'Você já possui uma equipe cadastrada. Carregue sua carreira existente ou arquive-a para iniciar uma nova.'
   }
 
-  if (error instanceof ClientResponseError && error.status === 400) {
-    const fieldErrors = extractFieldErrors(error)
-    const msgs = Object.values(fieldErrors)
-    if (msgs.length > 0) {
-      return msgs.join(' ')
+  if (error instanceof ClientResponseError) {
+    if (error.status === 400) {
+      const fieldErrors = extractFieldErrors(error)
+      if (fieldErrors.user_id) {
+        return 'Sua conta já está associada a uma carreira ativa nesta temporada.'
+      }
+      const general = getErrorMessage(error)
+      return general || 'Dados inválidos ao tentar criar a equipe. Verifique as informações.'
     }
-    return (
-      'Não foi possível criar a equipe — sua conta já possui uma equipe nesta carreira ou houve conflito de dados. ' +
-      'Recarregue a página ou acesse a central de comando.'
-    )
+    if (error.status === 0 || error.isAbort) {
+      return 'Conexão interrompida. Verifique sua internet e tente novamente.'
+    }
   }
 
-  return getErrorMessage(error)
+  return error instanceof Error
+    ? error.message
+    : 'Não foi possível concluir o registro da escuderia. Tente novamente.'
 }

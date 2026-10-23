@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-10-23T00:03:59.319Z",
+  "generatedAt": "2026-10-23T00:33:16.397Z",
   "collections": [
     {
       "name": "users",
@@ -460,9 +460,18 @@
           "type": "json",
           "required": false,
           "system": false
+        },
+        {
+          "name": "is_archived",
+          "type": "bool",
+          "required": false,
+          "system": false
         }
       ],
-      "indexes": ["CREATE INDEX idx_teams_user ON teams (user_id)"]
+      "indexes": [
+        "CREATE INDEX idx_teams_user ON teams (user_id)",
+        "CREATE INDEX `idx_teams_user_archived` ON `teams` (user_id, is_archived)"
+      ]
     },
     {
       "name": "seasons",

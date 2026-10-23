@@ -57,6 +57,12 @@ export default function TeamSelectionPage() {
   const [isCheckingTeam, setIsCheckingTeam] = useState(false)
   const [checkError, setCheckError] = useState<string | null>(null)
 
+  // SETUP-CHOICE-01A: Se o usuário tem carreira ativa, o fluxo inicia na etapa 'choice'
+  // Quando o usuário escolhe "Iniciar nova carreira", arquiva a carreira e muda para 'selection'
+  const [hasStartedNewCareerFlow, setHasStartedNewCareerFlow] = useState(false)
+  const [isArchivingCareer, setIsArchivingCareer] = useState(false)
+  const [showArchiveConfirmDialog, setShowArchiveConfirmDialog] = useState(false)
+
   // Se o usuário autenticado já possui equipe (via useAuth().team ou consulta), atualiza estado e redireciona
   React.useEffect(() => {
     let isMounted = true
@@ -120,6 +126,36 @@ export default function TeamSelectionPage() {
     navigate('/', { replace: true })
   }
 
+  // SETUP-CHOICE-01A: Iniciar nova carreira arquivando a anterior com 100% de preservação
+  const handleStartNewCareer = async () => {
+    const effectiveUserId =
+      user?.id || (await import('@/lib/pocketbase/client')).default.authStore.record?.id
+    if (!effectiveUserId) return
+
+    setIsArchivingCareer(true)
+    try {
+      await f1Service.archiveActiveCareer(effectiveUserId)
+      setExistingUserTeam(null)
+      setHasStartedNewCareerFlow(true)
+      setShowArchiveConfirmDialog(false)
+      await refreshTeamAndSeason()
+      toast({
+        title: 'Carreira Anterior Arquivada',
+        description:
+          'Seu histórico e temporadas anteriores permanecem 100% preservados. Escolha sua nova escuderia!',
+      })
+    } catch (err: any) {
+      console.error('[handleStartNewCareer] Erro ao arquivar:', err)
+      toast({
+        variant: 'destructive',
+        title: 'Falha ao Arquivar Carreira',
+        description: 'Não foi possível arquivar a carreira atual. Tente novamente.',
+      })
+    } finally {
+      setIsArchivingCareer(false)
+    }
+  }
+
   // Selected existing team for confirmation modal
   const [selectedOfficialTeam, setSelectedOfficialTeam] = useState<OfficialGridTeam | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -136,8 +172,8 @@ export default function TeamSelectionPage() {
   const handleConfirmOfficial = async () => {
     if (!selectedOfficialTeam) return
 
-    // Se o usuário já possui equipe ativa (via state ou auth), redireciona direto sem POST
-    const activeKnownTeam = existingUserTeam || team
+    // Se o usuário ainda não optou por iniciar nova carreira e possui equipe ativa conhecida, redireciona direto sem POST
+    const activeKnownTeam = !hasStartedNewCareerFlow ? existingUserTeam || team : null
     if (activeKnownTeam) {
       handleLoadExistingCareer(activeKnownTeam)
       return
@@ -168,7 +204,7 @@ export default function TeamSelectionPage() {
       return
     }
 
-    if (preExisting) {
+    if (preExisting && !hasStartedNewCareerFlow) {
       setExistingUserTeam(preExisting)
       setIsSubmitting(false)
       handleLoadExistingCareer(preExisting)
@@ -271,8 +307,8 @@ export default function TeamSelectionPage() {
   const handleCreateCustom = async (e: React.FormEvent) => {
     e.preventDefault()
 
-    // Se o usuário já possui equipe ativa (via state ou auth), redireciona direto sem POST
-    const activeKnownTeam = existingUserTeam || team
+    // Se o usuário ainda não optou por iniciar nova carreira e possui equipe ativa conhecida, redireciona direto sem POST
+    const activeKnownTeam = !hasStartedNewCareerFlow ? existingUserTeam || team : null
     if (activeKnownTeam) {
       handleLoadExistingCareer(activeKnownTeam)
       return
@@ -325,7 +361,7 @@ export default function TeamSelectionPage() {
       return
     }
 
-    if (preExisting) {
+    if (preExisting && !hasStartedNewCareerFlow) {
       setExistingUserTeam(preExisting)
       setIsSubmitting(false)
       handleLoadExistingCareer(preExisting)
@@ -411,414 +447,503 @@ export default function TeamSelectionPage() {
     }
   }
 
+  const activeCareerTeam = !hasStartedNewCareerFlow ? existingUserTeam || team : null
+
   return (
     <div className="min-h-[calc(100vh-3.5rem)] bg-[#F8FAFC] text-[#0F172A] py-8 sm:py-10 px-4 sm:px-6">
       <div className="max-w-5xl mx-auto space-y-8 animate-fade-in-up">
-        {/* Header */}
-        <div className="text-center space-y-3 pb-4 border-b border-[#E2E8F0]">
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-red-50 border border-red-200 text-[#E10600] text-xs font-mono font-bold uppercase tracking-widest shadow-xs">
-            <Flag className="w-3.5 h-3.5" /> Temporada F1 2026 • Novo Regulamento Híbrido 50/50
-          </div>
-          <h1 className="text-3xl sm:text-4xl font-extrabold tracking-tight text-[#0F172A]">
-            Escolha seu Destino na Fórmula 1
-          </h1>
-          <p className="text-sm sm:text-base text-[#64748B] max-w-2xl mx-auto">
-            Você pode comandar uma das{' '}
-            <strong className="text-[#0F172A]">11 escuderias oficiais</strong> já consagradas (com
-            seus pilotos titulares reais) ou registrar a{' '}
-            <strong className="text-[#00A6FB]">12ª equipe própria do grid</strong>, contratando
-            talentos fora do grid e construindo seu legado do zero.
-          </p>
-        </div>
-
-        {/* Banner de Carreira Existente */}
-        {(existingUserTeam || team) && (
-          <div className="p-4 rounded-xl bg-emerald-50 border border-emerald-300 text-emerald-900 shadow-sm flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-            <div className="flex items-center gap-3">
-              <div className="p-2.5 rounded-lg bg-emerald-600 text-white font-bold">
-                <Building2 className="w-5 h-5" />
+        {/* SETUP-CHOICE-01A: Etapa inicial de escolha para usuário com carreira ativa */}
+        {activeCareerTeam ? (
+          <div className="space-y-6 max-w-2xl mx-auto">
+            {/* Header de Escolha */}
+            <div className="text-center space-y-3 pb-2 border-b border-[#E2E8F0]">
+              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-700 text-xs font-mono font-bold uppercase tracking-widest shadow-xs">
+                <Shield className="w-3.5 h-3.5" /> Gerenciador de Carreira • F1 2026
               </div>
-              <div>
-                <span className="text-[11px] uppercase font-mono font-bold text-emerald-700 block">
-                  Carreira Ativa Identificada
-                </span>
-                <h3 className="text-base font-extrabold text-[#0F172A]">
-                  {(existingUserTeam || team).name}
-                </h3>
-                <p className="text-xs text-emerald-800">
-                  Sua conta já possui uma escuderia vinculada para a temporada 2026.
-                </p>
-              </div>
+              <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-[#0F172A]">
+                Como você deseja prosseguir?
+              </h1>
+              <p className="text-sm text-[#64748B] max-w-lg mx-auto">
+                Identificamos uma carreira ativa associada à sua conta. Você pode continuar seu
+                comando ou iniciar uma nova jornada na Fórmula 1.
+              </p>
             </div>
-            <Button
-              onClick={() => handleLoadExistingCareer(existingUserTeam || team)}
-              className="w-full sm:w-auto bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs h-10 px-5 shadow-sm"
-            >
-              Carregar Carreira — {(existingUserTeam || team).name}
-              <ChevronRight className="w-4 h-4 ml-1.5" />
-            </Button>
-          </div>
-        )}
 
-        {/* Aviso de erro ou instabilidade na verificação prévia */}
-        {checkError && (
-          <div className="p-4 rounded-xl bg-amber-50 border border-amber-300 text-amber-900 shadow-sm flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs">
-            <div className="flex items-center gap-2">
-              <AlertCircle className="w-4 h-4 text-amber-700 shrink-0" />
-              <span>{checkError}</span>
-            </div>
-            <div className="flex items-center gap-2 w-full sm:w-auto">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={async () => {
-                  setCheckError(null)
-                  setIsCheckingTeam(true)
-                  try {
-                    const effectiveUserId =
-                      user?.id ||
-                      (await import('@/lib/pocketbase/client')).default.authStore.record?.id
-                    if (effectiveUserId) {
-                      const res = await f1Service.getPlayerTeam(effectiveUserId)
-                      setExistingUserTeam(res)
-                      if (res) await refreshTeamAndSeason()
-                    }
-                  } catch (e) {
-                    setCheckError(
-                      'Tentativa de conexão falhou. Verifique sua rede e tente novamente.',
-                    )
-                  } finally {
-                    setIsCheckingTeam(false)
-                  }
-                }}
-                disabled={isCheckingTeam}
-                className="text-xs h-8 bg-white border-amber-300 text-amber-900 hover:bg-amber-100"
-              >
-                {isCheckingTeam ? 'Conectando...' : 'Tentar Novamente'}
-              </Button>
-              {(existingUserTeam || team) && (
+            {/* Aviso de erro ou instabilidade na verificação prévia */}
+            {checkError && (
+              <div className="p-4 rounded-xl bg-amber-50 border border-amber-300 text-amber-900 shadow-sm flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs">
+                <div className="flex items-center gap-2">
+                  <AlertCircle className="w-4 h-4 text-amber-700 shrink-0" />
+                  <span>{checkError}</span>
+                </div>
                 <Button
+                  variant="outline"
                   size="sm"
-                  onClick={() => handleLoadExistingCareer(existingUserTeam || team)}
-                  className="text-xs h-8 bg-emerald-600 hover:bg-emerald-700 text-white font-bold"
+                  onClick={() => handleLoadExistingCareer(activeCareerTeam)}
+                  className="text-xs h-8 bg-white border-amber-300 text-amber-900 hover:bg-amber-100 shrink-0"
                 >
-                  Carregar Carreira
+                  Continuar mesmo assim
                 </Button>
-              )}
+              </div>
+            )}
+
+            {/* Opção 1: Carregar Carreira Existente */}
+            <Card className="bg-white border-2 border-emerald-500/40 shadow-sm hover:border-emerald-500 transition-all">
+              <CardHeader className="pb-3">
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-3">
+                    <div className="p-2.5 rounded-xl bg-emerald-600 text-white shadow-xs">
+                      <Building2 className="w-6 h-6" />
+                    </div>
+                    <div>
+                      <span className="text-[10px] uppercase font-mono font-bold text-emerald-700 tracking-wider block">
+                        Carreira Existente
+                      </span>
+                      <CardTitle className="text-lg sm:text-xl font-black text-[#0F172A]">
+                        {activeCareerTeam.name}
+                      </CardTitle>
+                    </div>
+                  </div>
+                  {activeCareerTeam.engine_supplier && (
+                    <Badge
+                      variant="outline"
+                      className="font-mono text-xs border-emerald-300 bg-emerald-50 text-emerald-800"
+                    >
+                      Motor {activeCareerTeam.engine_supplier}
+                    </Badge>
+                  )}
+                </div>
+                <CardDescription className="text-xs text-[#64748B] pt-2">
+                  Retome seu comando imediatamente na Central de Comando. Nenhum dado é alterado ou
+                  recriado.
+                </CardDescription>
+              </CardHeader>
+              <CardFooter className="pt-2 border-t border-[#E2E8F0]">
+                <Button
+                  onClick={() => handleLoadExistingCareer(activeCareerTeam)}
+                  className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-sm h-12 shadow-sm flex items-center justify-center gap-2"
+                >
+                  <Building2 className="w-4 h-4" />
+                  Carregar Carreira — {activeCareerTeam.name}
+                  <ChevronRight className="w-4 h-4 ml-auto" />
+                </Button>
+              </CardFooter>
+            </Card>
+
+            {/* Opção 2: Iniciar Nova Carreira */}
+            <Card className="bg-white border border-[#E2E8F0] shadow-sm hover:border-blue-400 transition-all">
+              <CardHeader className="pb-3">
+                <div className="flex items-center gap-3">
+                  <div className="p-2.5 rounded-xl bg-slate-100 text-[#0F172A] border border-slate-200 shadow-xs">
+                    <PlusCircle className="w-6 h-6 text-blue-600" />
+                  </div>
+                  <div>
+                    <span className="text-[10px] uppercase font-mono font-bold text-blue-700 tracking-wider block">
+                      Nova Trajetória
+                    </span>
+                    <CardTitle className="text-lg sm:text-xl font-black text-[#0F172A]">
+                      Iniciar Nova Carreira
+                    </CardTitle>
+                  </div>
+                </div>
+                <CardDescription className="text-xs text-[#64748B] pt-2">
+                  Escolha outra equipe oficial do grid ou funde sua própria escuderia. Sua carreira
+                  atual ({activeCareerTeam.name}) será{' '}
+                  <strong className="text-[#0F172A]">arquivada e 100% preservada</strong> no
+                  histórico do jogo.
+                </CardDescription>
+              </CardHeader>
+              <CardFooter className="pt-2 border-t border-[#E2E8F0]">
+                <Button
+                  variant="outline"
+                  onClick={() => setShowArchiveConfirmDialog(true)}
+                  className="w-full border-blue-200 bg-blue-50/50 hover:bg-blue-100 text-blue-900 font-bold text-sm h-12 flex items-center justify-center gap-2"
+                >
+                  <Sparkles className="w-4 h-4 text-blue-600" />
+                  Iniciar Nova Carreira (Arquivar Atual)
+                  <ChevronRight className="w-4 h-4 ml-auto" />
+                </Button>
+              </CardFooter>
+            </Card>
+
+            {/* Explicação de Preservação Canônica */}
+            <div className="p-3.5 rounded-xl bg-[#F1F5F9] border border-[#CBD5E1] text-xs text-[#475569] flex items-start gap-2.5">
+              <Shield className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+              <span>
+                <strong>Garantia de Preservação:</strong> Ao iniciar uma nova carreira, a história
+                oficial de 2026 e os dados da sua equipe anterior permanecem integralmente gravados
+                no banco de dados. Nada é deletado.
+              </span>
             </div>
           </div>
-        )}
-
-        {/* Selection Tabs */}
-        <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as any)} className="w-full">
-          <TabsList className="grid w-full grid-cols-2 bg-slate-100 border border-[#E2E8F0] h-13 p-1">
-            <TabsTrigger
-              value="existing"
-              className="data-[state=active]:bg-white data-[state=active]:text-[#E10600] data-[state=active]:shadow-xs font-bold text-xs sm:text-sm flex items-center justify-center gap-2 py-2.5"
-            >
-              <Building2 className="w-4 h-4" />
-              Operar Equipe Existente (11 Equipes Reais)
-            </TabsTrigger>
-            <TabsTrigger
-              value="custom"
-              className="data-[state=active]:bg-white data-[state=active]:text-[#00A6FB] data-[state=active]:shadow-xs font-bold text-xs sm:text-sm flex items-center justify-center gap-2 py-2.5"
-            >
-              <PlusCircle className="w-4 h-4" />
-              Criar Equipe Própria (12ª do Grid)
-            </TabsTrigger>
-          </TabsList>
-
-          {/* TAB 1: 11 EQUIPES REAIS */}
-          <TabsContent value="existing" className="space-y-6 pt-4">
-            <div className="p-4 rounded-xl bg-white border border-[#E2E8F0] text-xs text-[#64748B] flex items-start gap-3 shadow-xs">
-              <Shield className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
-              <div>
-                <strong className="text-[#0F172A] block text-sm">
-                  Sistema de Força & Situação 2026:
-                </strong>
-                A força de cada equipe (rating 0-100) é calibrada combinando o momento recente das
-                temporadas 2024-2025 com o prestígio e infraestrutura histórica. Ao escolher uma
-                equipe, você herda seus pilotos titulares, peças calibradas e orçamento inicial.
+        ) : (
+          <>
+            {/* Header de Seleção de Equipe */}
+            <div className="text-center space-y-3 pb-4 border-b border-[#E2E8F0]">
+              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-red-50 border border-red-200 text-[#E10600] text-xs font-mono font-bold uppercase tracking-widest shadow-xs">
+                <Flag className="w-3.5 h-3.5" /> Temporada F1 2026 • Novo Regulamento Híbrido 50/50
               </div>
+              <h1 className="text-3xl sm:text-4xl font-extrabold tracking-tight text-[#0F172A]">
+                Escolha seu Destino na Fórmula 1
+              </h1>
+              <p className="text-sm sm:text-base text-[#64748B] max-w-2xl mx-auto">
+                Você pode comandar uma das{' '}
+                <strong className="text-[#0F172A]">11 escuderias oficiais</strong> já consagradas
+                (com seus pilotos titulares reais) ou registrar a{' '}
+                <strong className="text-[#00A6FB]">12ª equipe própria do grid</strong>, contratando
+                talentos fora do grid e construindo seu legado do zero.
+              </p>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {OFFICIAL_GRID_TEAMS.map((team) => {
-                const tierInfo = getStrengthBadge(team.strength)
-                return (
-                  <Card
-                    key={team.key}
-                    className="bg-white border-[#E2E8F0] hover:border-[#E10600] transition-all duration-200 flex flex-col justify-between shadow-xs"
+            {/* Aviso de erro ou instabilidade na verificação prévia */}
+            {checkError && (
+              <div className="p-4 rounded-xl bg-amber-50 border border-amber-300 text-amber-900 shadow-sm flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs">
+                <div className="flex items-center gap-2">
+                  <AlertCircle className="w-4 h-4 text-amber-700 shrink-0" />
+                  <span>{checkError}</span>
+                </div>
+                <div className="flex items-center gap-2 w-full sm:w-auto">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={async () => {
+                      setCheckError(null)
+                      setIsCheckingTeam(true)
+                      try {
+                        const effectiveUserId =
+                          user?.id ||
+                          (await import('@/lib/pocketbase/client')).default.authStore.record?.id
+                        if (effectiveUserId) {
+                          const res = await f1Service.getPlayerTeam(effectiveUserId)
+                          setExistingUserTeam(res)
+                          if (res) await refreshTeamAndSeason()
+                        }
+                      } catch (e) {
+                        setCheckError(
+                          'Tentativa de conexão falhou. Verifique sua rede e tente novamente.',
+                        )
+                      } finally {
+                        setIsCheckingTeam(false)
+                      }
+                    }}
+                    disabled={isCheckingTeam}
+                    className="text-xs h-8 bg-white border-amber-300 text-amber-900 hover:bg-amber-100"
                   >
-                    <CardHeader className="pb-3">
-                      <div className="flex items-start justify-between gap-2">
-                        <div className="flex items-center gap-2.5">
-                          <span
-                            className="w-4 h-4 rounded-full shrink-0 shadow-xs"
-                            style={{ backgroundColor: team.color }}
-                          />
-                          <div>
-                            <CardTitle className="text-base sm:text-lg font-bold text-[#0F172A]">
-                              {team.name}
-                            </CardTitle>
-                            <span className="text-xs font-mono text-[#64748B]">
-                              Motor {team.engine} • 50/50 Híbrido
-                            </span>
-                          </div>
-                        </div>
+                    {isCheckingTeam ? 'Conectando...' : 'Tentar Novamente'}
+                  </Button>
+                  {(existingUserTeam || team) && (
+                    <Button
+                      size="sm"
+                      onClick={() => handleLoadExistingCareer(existingUserTeam || team)}
+                      className="text-xs h-8 bg-emerald-600 hover:bg-emerald-700 text-white font-bold"
+                    >
+                      Carregar Carreira
+                    </Button>
+                  )}
+                </div>
+              </div>
+            )}
 
-                        {/* Rating Badge */}
-                        <div className="text-right shrink-0">
-                          <div className="flex items-baseline justify-end gap-1 font-mono">
-                            <span className="text-2xl font-black text-[#0F172A]">
-                              {team.strength}
-                            </span>
-                            <span className="text-[10px] text-[#64748B]">/100</span>
+            {/* Selection Tabs */}
+            <Tabs
+              value={activeTab}
+              onValueChange={(v) => setActiveTab(v as any)}
+              className="w-full"
+            >
+              <TabsList className="grid w-full grid-cols-2 bg-slate-100 border border-[#E2E8F0] h-13 p-1">
+                <TabsTrigger
+                  value="existing"
+                  className="data-[state=active]:bg-white data-[state=active]:text-[#E10600] data-[state=active]:shadow-xs font-bold text-xs sm:text-sm flex items-center justify-center gap-2 py-2.5"
+                >
+                  <Building2 className="w-4 h-4" />
+                  Operar Equipe Existente (11 Equipes Reais)
+                </TabsTrigger>
+                <TabsTrigger
+                  value="custom"
+                  className="data-[state=active]:bg-white data-[state=active]:text-[#00A6FB] data-[state=active]:shadow-xs font-bold text-xs sm:text-sm flex items-center justify-center gap-2 py-2.5"
+                >
+                  <PlusCircle className="w-4 h-4" />
+                  Criar Equipe Própria (12ª do Grid)
+                </TabsTrigger>
+              </TabsList>
+
+              {/* TAB 1: 11 EQUIPES REAIS */}
+              <TabsContent value="existing" className="space-y-6 pt-4">
+                <div className="p-4 rounded-xl bg-white border border-[#E2E8F0] text-xs text-[#64748B] flex items-start gap-3 shadow-xs">
+                  <Shield className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
+                  <div>
+                    <strong className="text-[#0F172A] block text-sm">
+                      Sistema de Força & Situação 2026:
+                    </strong>
+                    A força de cada equipe (rating 0-100) é calibrada combinando o momento recente
+                    das temporadas 2024-2025 com o prestígio e infraestrutura histórica. Ao escolher
+                    uma equipe, você herda seus pilotos titulares, peças calibradas e orçamento
+                    inicial.
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {OFFICIAL_GRID_TEAMS.map((team) => {
+                    const tierInfo = getStrengthBadge(team.strength)
+                    return (
+                      <Card
+                        key={team.key}
+                        className="bg-white border-[#E2E8F0] hover:border-[#E10600] transition-all duration-200 flex flex-col justify-between shadow-xs"
+                      >
+                        <CardHeader className="pb-3">
+                          <div className="flex items-start justify-between gap-2">
+                            <div className="flex items-center gap-2.5">
+                              <span
+                                className="w-4 h-4 rounded-full shrink-0 shadow-xs"
+                                style={{ backgroundColor: team.color }}
+                              />
+                              <div>
+                                <CardTitle className="text-base sm:text-lg font-bold text-[#0F172A]">
+                                  {team.name}
+                                </CardTitle>
+                                <span className="text-xs font-mono text-[#64748B]">
+                                  Motor {team.engine} • 50/50 Híbrido
+                                </span>
+                              </div>
+                            </div>
+
+                            {/* Rating Badge */}
+                            <div className="text-right shrink-0">
+                              <div className="flex items-baseline justify-end gap-1 font-mono">
+                                <span className="text-2xl font-black text-[#0F172A]">
+                                  {team.strength}
+                                </span>
+                                <span className="text-[10px] text-[#64748B]">/100</span>
+                              </div>
+                              <Badge
+                                variant="outline"
+                                className={`text-[9px] font-mono px-1.5 py-0 h-4 ${tierInfo.color}`}
+                              >
+                                Força {team.strength}
+                              </Badge>
+                            </div>
                           </div>
-                          <Badge
-                            variant="outline"
-                            className={`text-[9px] font-mono px-1.5 py-0 h-4 ${tierInfo.color}`}
+                        </CardHeader>
+
+                        <CardContent className="space-y-3.5 text-xs">
+                          {/* Situação Atual */}
+                          <div className="p-2.5 rounded-lg bg-[#F8FAFC] border border-[#E2E8F0] space-y-1">
+                            <span className="text-[10px] uppercase font-mono font-bold text-cyan-700 block">
+                              Situação no Campeonato & História:
+                            </span>
+                            <p className="text-[#334155] leading-relaxed font-sans">
+                              {team.currentSituation}
+                            </p>
+                            <p className="text-[#64748B] text-[11px] font-sans italic">
+                              {team.historySummary}
+                            </p>
+                          </div>
+
+                          {/* Pilotos Titulares e Reserva */}
+                          <div className="space-y-1.5">
+                            <div className="flex justify-between items-center text-[10px] uppercase font-mono text-[#64748B]">
+                              <span>Escalação 2026 (2 Titulares + 1 Reserva):</span>
+                            </div>
+                            <div className="grid grid-cols-2 gap-2 font-mono">
+                              <div className="p-2 rounded bg-[#F8FAFC] border border-[#E2E8F0] flex items-center justify-between">
+                                <span className="text-[#0F172A] font-bold truncate text-[11px]">
+                                  {team.driver1.flag} {team.driver1.name}
+                                </span>
+                                <span className="text-cyan-700 text-[10px] ml-1 shrink-0 font-semibold">
+                                  {team.driver1.speed} VEL
+                                </span>
+                              </div>
+                              <div className="p-2 rounded bg-[#F8FAFC] border border-[#E2E8F0] flex items-center justify-between">
+                                <span className="text-[#0F172A] font-bold truncate text-[11px]">
+                                  {team.driver2.flag} {team.driver2.name}
+                                </span>
+                                <span className="text-cyan-700 text-[10px] ml-1 shrink-0 font-semibold">
+                                  {team.driver2.speed} VEL
+                                </span>
+                              </div>
+                            </div>
+                            <div className="p-1.5 rounded bg-[#F8FAFC] border border-[#E2E8F0] flex items-center justify-between font-mono text-[11px]">
+                              <span className="text-amber-700 font-bold truncate flex items-center gap-1">
+                                <span className="text-[9px] uppercase px-1 py-0.2 bg-amber-50 text-amber-800 rounded border border-amber-200">
+                                  Reserva
+                                </span>
+                                {team.reserveDriver.flag} {team.reserveDriver.name}
+                              </span>
+                              <span className="text-[#64748B] text-[10px] shrink-0">
+                                {team.reserveDriver.speed} VEL • 2 FPs/ano
+                              </span>
+                            </div>
+                          </div>
+
+                          {/* Budget */}
+                          <div className="flex justify-between items-center pt-1 font-mono text-xs text-[#64748B]">
+                            <span>Orçamento Base:</span>
+                            <strong className="text-emerald-700">
+                              {formatCurrency(team.budget)}
+                            </strong>
+                          </div>
+                        </CardContent>
+
+                        <CardFooter className="pt-2 border-t border-[#E2E8F0]">
+                          <Button
+                            onClick={() => setSelectedOfficialTeam(team)}
+                            className="w-full bg-[#F8FAFC] hover:bg-[#E10600] text-[#0F172A] hover:text-white border border-[#CBD5E1] font-bold text-xs h-9 transition-colors"
                           >
-                            Força {team.strength}
-                          </Badge>
-                        </div>
-                      </div>
-                    </CardHeader>
+                            Assumir {team.name}
+                            <ChevronRight className="w-4 h-4 ml-1" />
+                          </Button>
+                        </CardFooter>
+                      </Card>
+                    )
+                  })}
+                </div>
+              </TabsContent>
 
-                    <CardContent className="space-y-3.5 text-xs">
-                      {/* Situação Atual */}
-                      <div className="p-2.5 rounded-lg bg-[#F8FAFC] border border-[#E2E8F0] space-y-1">
-                        <span className="text-[10px] uppercase font-mono font-bold text-cyan-700 block">
-                          Situação no Campeonato & História:
-                        </span>
-                        <p className="text-[#334155] leading-relaxed font-sans">
-                          {team.currentSituation}
-                        </p>
-                        <p className="text-[#64748B] text-[11px] font-sans italic">
-                          {team.historySummary}
-                        </p>
+              {/* TAB 2: CRIAR PRÓPRIA EQUIPE (12ª DO GRID) */}
+              <TabsContent value="custom" className="space-y-6 pt-4">
+                <Card className="bg-white border-[#E2E8F0] max-w-2xl mx-auto shadow-md">
+                  <CardHeader>
+                    <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded bg-sky-50 border border-sky-200 text-[#00A6FB] text-xs font-mono font-bold uppercase w-fit">
+                      <Sparkles className="w-3.5 h-3.5" /> A 12ª Escuderia da F1 2026
+                    </div>
+                    <CardTitle className="text-xl font-bold text-[#0F172A]">
+                      Crie sua Própria Equipe
+                    </CardTitle>
+                    <CardDescription className="text-xs text-[#64748B]">
+                      Como nova equipe estreante, você começa sem pilotos titulares e com força
+                      inicial modesta (~55), devendo garimpar talentos disponíveis e evoluir seu
+                      carro no P&D.
+                    </CardDescription>
+                  </CardHeader>
+
+                  <form onSubmit={handleCreateCustom}>
+                    <CardContent className="space-y-6">
+                      {/* Nome da equipe */}
+                      <div className="space-y-2">
+                        <Label
+                          htmlFor="customName"
+                          className="text-xs font-mono uppercase text-[#8B95A7]"
+                        >
+                          Nome Oficial da Escuderia *
+                        </Label>
+                        <Input
+                          id="customName"
+                          placeholder="Ex: Escuderia Brasil, Andretti Global, Puma Racing..."
+                          value={customName}
+                          onChange={(e) => {
+                            setCustomName(e.target.value)
+                            setCustomNameError('')
+                          }}
+                          className="bg-white border-[#CBD5E1] text-[#0F172A] text-sm focus-visible:ring-[#00A6FB]"
+                        />
+                        {customNameError && (
+                          <p className="text-xs text-rose-600 font-mono">{customNameError}</p>
+                        )}
                       </div>
 
-                      {/* Pilotos Titulares e Reserva */}
-                      <div className="space-y-1.5">
-                        <div className="flex justify-between items-center text-[10px] uppercase font-mono text-[#64748B]">
-                          <span>Escalação 2026 (2 Titulares + 1 Reserva):</span>
-                        </div>
-                        <div className="grid grid-cols-2 gap-2 font-mono">
-                          <div className="p-2 rounded bg-[#F8FAFC] border border-[#E2E8F0] flex items-center justify-between">
-                            <span className="text-[#0F172A] font-bold truncate text-[11px]">
-                              {team.driver1.flag} {team.driver1.name}
-                            </span>
-                            <span className="text-cyan-700 text-[10px] ml-1 shrink-0 font-semibold">
-                              {team.driver1.speed} VEL
-                            </span>
+                      {/* Cor da equipe */}
+                      <div className="space-y-2">
+                        <Label className="text-xs font-mono uppercase text-[#64748B]">
+                          Cor Principal da Pintura (Livery)
+                        </Label>
+                        <div className="flex items-center gap-3">
+                          <input
+                            type="color"
+                            value={customColor}
+                            onChange={(e) => setCustomColor(e.target.value)}
+                            className="w-12 h-10 rounded cursor-pointer bg-white border border-[#CBD5E1] p-1"
+                          />
+                          <span className="font-mono text-xs text-[#64748B]">{customColor}</span>
+                          <div
+                            className="px-3 py-1 rounded text-xs font-bold text-white shadow"
+                            style={{ backgroundColor: customColor }}
+                          >
+                            {customName || 'Sua Equipe'}
                           </div>
-                          <div className="p-2 rounded bg-[#F8FAFC] border border-[#E2E8F0] flex items-center justify-between">
-                            <span className="text-[#0F172A] font-bold truncate text-[11px]">
-                              {team.driver2.flag} {team.driver2.name}
-                            </span>
-                            <span className="text-cyan-700 text-[10px] ml-1 shrink-0 font-semibold">
-                              {team.driver2.speed} VEL
-                            </span>
-                          </div>
-                        </div>
-                        <div className="p-1.5 rounded bg-[#F8FAFC] border border-[#E2E8F0] flex items-center justify-between font-mono text-[11px]">
-                          <span className="text-amber-700 font-bold truncate flex items-center gap-1">
-                            <span className="text-[9px] uppercase px-1 py-0.2 bg-amber-50 text-amber-800 rounded border border-amber-200">
-                              Reserva
-                            </span>
-                            {team.reserveDriver.flag} {team.reserveDriver.name}
-                          </span>
-                          <span className="text-[#64748B] text-[10px] shrink-0">
-                            {team.reserveDriver.speed} VEL • 2 FPs/ano
-                          </span>
                         </div>
                       </div>
 
-                      {/* Budget */}
-                      <div className="flex justify-between items-center pt-1 font-mono text-xs text-[#64748B]">
-                        <span>Orçamento Base:</span>
-                        <strong className="text-emerald-700">{formatCurrency(team.budget)}</strong>
+                      {/* Fornecedor de Motor 50/50 */}
+                      <div className="space-y-3">
+                        <Label className="text-xs font-mono uppercase text-[#64748B]">
+                          Fornecedor de Unidade de Potência 50/50 *
+                        </Label>
+                        <RadioGroup
+                          value={customEngine}
+                          onValueChange={(val) => setCustomEngine(val as any)}
+                          className="grid grid-cols-1 sm:grid-cols-2 gap-3"
+                        >
+                          {ENGINE_SUPPLIERS.map((eng) => (
+                            <div
+                              key={eng.name}
+                              onClick={() => setCustomEngine(eng.name)}
+                              className={`p-3.5 rounded-xl border cursor-pointer transition-all ${
+                                customEngine === eng.name
+                                  ? 'border-[#00A6FB] bg-sky-50 text-[#0F172A]'
+                                  : 'border-[#E2E8F0] bg-[#F8FAFC] text-[#64748B] hover:border-[#CBD5E1]'
+                              }`}
+                            >
+                              <div className="flex items-center justify-between">
+                                <span className="font-bold text-sm text-[#0F172A]">{eng.name}</span>
+                                <RadioGroupItem value={eng.name} id={eng.name} />
+                              </div>
+                              <span className="text-[11px] font-mono text-cyan-700 block mt-1">
+                                {eng.techBadge}
+                              </span>
+                              <div className="flex justify-between text-[10px] font-mono text-[#64748B] mt-2">
+                                <span>
+                                  Potência: <strong className="text-[#0F172A]">{eng.power}</strong>
+                                </span>
+                                <span>
+                                  Confiabilidade:{' '}
+                                  <strong className="text-[#0F172A]">{eng.reliability}%</strong>
+                                </span>
+                              </div>
+                            </div>
+                          ))}
+                        </RadioGroup>
+                      </div>
+
+                      {/* Detalhes da Condição Inicial como 12ª equipe */}
+                      <div className="p-4 rounded-xl bg-[#F8FAFC] border border-[#E2E8F0] space-y-2 text-xs font-mono">
+                        <div className="text-amber-700 font-bold flex items-center gap-1.5">
+                          <AlertCircle className="w-4 h-4" /> Condições da Estreante 2026:
+                        </div>
+                        <ul className="space-y-1 text-[#64748B] list-disc list-inside">
+                          <li>
+                            Força base inicial de <strong>55/100</strong> (Pelotão de fundo para
+                            evoluir).
+                          </li>
+                          <li>
+                            Orçamento inicial de <strong>{formatCurrency(130000000)}</strong>.
+                          </li>
+                          <li>
+                            <strong>Sem pilotos titulares iniciais</strong>: ao entrar, você acessa
+                            o mercado para contratar 2 pilotos livres (como Drugovich, Bottas,
+                            Schumacher, Maloney, Aron...).
+                          </li>
+                          <li>Peças nível 4 em desenvolvimento de chassi e aerodinâmica ativa.</li>
+                        </ul>
                       </div>
                     </CardContent>
 
                     <CardFooter className="pt-2 border-t border-[#E2E8F0]">
-                      {existingUserTeam || team ? (
-                        <Button
-                          onClick={() => handleLoadExistingCareer(existingUserTeam || team)}
-                          className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs h-9 transition-colors shadow-xs"
-                        >
-                          Carregar Carreira — {(existingUserTeam || team).name}
-                          <ChevronRight className="w-4 h-4 ml-1" />
-                        </Button>
-                      ) : (
-                        <Button
-                          onClick={() => setSelectedOfficialTeam(team)}
-                          className="w-full bg-[#F8FAFC] hover:bg-[#E10600] text-[#0F172A] hover:text-white border border-[#CBD5E1] font-bold text-xs h-9 transition-colors"
-                        >
-                          Assumir {team.name}
-                          <ChevronRight className="w-4 h-4 ml-1" />
-                        </Button>
-                      )}
-                    </CardFooter>
-                  </Card>
-                )
-              })}
-            </div>
-          </TabsContent>
-
-          {/* TAB 2: CRIAR PRÓPRIA EQUIPE (12ª DO GRID) */}
-          <TabsContent value="custom" className="space-y-6 pt-4">
-            <Card className="bg-white border-[#E2E8F0] max-w-2xl mx-auto shadow-md">
-              <CardHeader>
-                <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded bg-sky-50 border border-sky-200 text-[#00A6FB] text-xs font-mono font-bold uppercase w-fit">
-                  <Sparkles className="w-3.5 h-3.5" /> A 12ª Escuderia da F1 2026
-                </div>
-                <CardTitle className="text-xl font-bold text-[#0F172A]">
-                  Crie sua Própria Equipe
-                </CardTitle>
-                <CardDescription className="text-xs text-[#64748B]">
-                  Como nova equipe estreante, você começa sem pilotos titulares e com força inicial
-                  modesta (~55), devendo garimpar talentos disponíveis e evoluir seu carro no P&D.
-                </CardDescription>
-              </CardHeader>
-
-              <form onSubmit={handleCreateCustom}>
-                <CardContent className="space-y-6">
-                  {/* Nome da equipe */}
-                  <div className="space-y-2">
-                    <Label
-                      htmlFor="customName"
-                      className="text-xs font-mono uppercase text-[#8B95A7]"
-                    >
-                      Nome Oficial da Escuderia *
-                    </Label>
-                    <Input
-                      id="customName"
-                      placeholder="Ex: Escuderia Brasil, Andretti Global, Puma Racing..."
-                      value={customName}
-                      onChange={(e) => {
-                        setCustomName(e.target.value)
-                        setCustomNameError('')
-                      }}
-                      className="bg-white border-[#CBD5E1] text-[#0F172A] text-sm focus-visible:ring-[#00A6FB]"
-                    />
-                    {customNameError && (
-                      <p className="text-xs text-rose-600 font-mono">{customNameError}</p>
-                    )}
-                  </div>
-
-                  {/* Cor da equipe */}
-                  <div className="space-y-2">
-                    <Label className="text-xs font-mono uppercase text-[#64748B]">
-                      Cor Principal da Pintura (Livery)
-                    </Label>
-                    <div className="flex items-center gap-3">
-                      <input
-                        type="color"
-                        value={customColor}
-                        onChange={(e) => setCustomColor(e.target.value)}
-                        className="w-12 h-10 rounded cursor-pointer bg-white border border-[#CBD5E1] p-1"
-                      />
-                      <span className="font-mono text-xs text-[#64748B]">{customColor}</span>
-                      <div
-                        className="px-3 py-1 rounded text-xs font-bold text-white shadow"
-                        style={{ backgroundColor: customColor }}
+                      <Button
+                        type="submit"
+                        disabled={isSubmitting}
+                        className="w-full bg-[#00A6FB] hover:bg-[#0090DA] text-white font-bold h-10 shadow-md shadow-sky-200"
                       >
-                        {customName || 'Sua Equipe'}
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Fornecedor de Motor 50/50 */}
-                  <div className="space-y-3">
-                    <Label className="text-xs font-mono uppercase text-[#64748B]">
-                      Fornecedor de Unidade de Potência 50/50 *
-                    </Label>
-                    <RadioGroup
-                      value={customEngine}
-                      onValueChange={(val) => setCustomEngine(val as any)}
-                      className="grid grid-cols-1 sm:grid-cols-2 gap-3"
-                    >
-                      {ENGINE_SUPPLIERS.map((eng) => (
-                        <div
-                          key={eng.name}
-                          onClick={() => setCustomEngine(eng.name)}
-                          className={`p-3.5 rounded-xl border cursor-pointer transition-all ${
-                            customEngine === eng.name
-                              ? 'border-[#00A6FB] bg-sky-50 text-[#0F172A]'
-                              : 'border-[#E2E8F0] bg-[#F8FAFC] text-[#64748B] hover:border-[#CBD5E1]'
-                          }`}
-                        >
-                          <div className="flex items-center justify-between">
-                            <span className="font-bold text-sm text-[#0F172A]">{eng.name}</span>
-                            <RadioGroupItem value={eng.name} id={eng.name} />
-                          </div>
-                          <span className="text-[11px] font-mono text-cyan-700 block mt-1">
-                            {eng.techBadge}
-                          </span>
-                          <div className="flex justify-between text-[10px] font-mono text-[#64748B] mt-2">
-                            <span>
-                              Potência: <strong className="text-[#0F172A]">{eng.power}</strong>
-                            </span>
-                            <span>
-                              Confiabilidade:{' '}
-                              <strong className="text-[#0F172A]">{eng.reliability}%</strong>
-                            </span>
-                          </div>
-                        </div>
-                      ))}
-                    </RadioGroup>
-                  </div>
-
-                  {/* Detalhes da Condição Inicial como 12ª equipe */}
-                  <div className="p-4 rounded-xl bg-[#F8FAFC] border border-[#E2E8F0] space-y-2 text-xs font-mono">
-                    <div className="text-amber-700 font-bold flex items-center gap-1.5">
-                      <AlertCircle className="w-4 h-4" /> Condições da Estreante 2026:
-                    </div>
-                    <ul className="space-y-1 text-[#64748B] list-disc list-inside">
-                      <li>
-                        Força base inicial de <strong>55/100</strong> (Pelotão de fundo para
-                        evoluir).
-                      </li>
-                      <li>
-                        Orçamento inicial de <strong>{formatCurrency(130000000)}</strong>.
-                      </li>
-                      <li>
-                        <strong>Sem pilotos titulares iniciais</strong>: ao entrar, você acessa o
-                        mercado para contratar 2 pilotos livres (como Drugovich, Bottas, Schumacher,
-                        Maloney, Aron...).
-                      </li>
-                      <li>Peças nível 4 em desenvolvimento de chassi e aerodinâmica ativa.</li>
-                    </ul>
-                  </div>
-                </CardContent>
-
-                <CardFooter className="pt-2 border-t border-[#E2E8F0]">
-                  {existingUserTeam || team ? (
-                    <Button
-                      type="button"
-                      onClick={() => handleLoadExistingCareer(existingUserTeam || team)}
-                      className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold h-10 shadow-md"
-                    >
-                      Carregar Carreira — {(existingUserTeam || team).name}
-                    </Button>
-                  ) : (
-                    <Button
-                      type="submit"
-                      disabled={isSubmitting}
-                      className="w-full bg-[#00A6FB] hover:bg-[#0090DA] text-white font-bold h-10 shadow-md shadow-sky-200"
-                    >
-                      {isSubmitting
-                        ? 'Homologando nova escuderia...'
-                        : 'Fundar Equipe e Ingressar na F1 2026'}
-                    </Button>
-                  )}
-                </CardFooter>
-              </form>
-            </Card>
-          </TabsContent>
-        </Tabs>
+                        {isSubmitting
+                          ? 'Homologando nova escuderia...'
+                          : 'Fundar Equipe e Ingressar na F1 2026'}
+                      </Button>
+                    </CardFooter>
+                  </form>
+                </Card>
+              </TabsContent>
+            </Tabs>
+          </>
+        )}
       </div>
 
       {/* Confirmation Modal for Official Team */}
@@ -895,25 +1020,74 @@ export default function TeamSelectionPage() {
             >
               Voltar
             </Button>
-            {existingUserTeam || team ? (
-              <Button
-                onClick={() => {
-                  setSelectedOfficialTeam(null)
-                  handleLoadExistingCareer(existingUserTeam || team)
-                }}
-                className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold"
-              >
-                Carregar Carreira — {(existingUserTeam || team).name}
-              </Button>
-            ) : (
-              <Button
-                onClick={handleConfirmOfficial}
-                disabled={isSubmitting}
-                className="bg-[#E10600] hover:bg-[#C60500] text-white font-bold"
-              >
-                {isSubmitting ? 'Configurando...' : 'Confirmar e Assumir Escuderia'}
-              </Button>
-            )}
+            <Button
+              onClick={handleConfirmOfficial}
+              disabled={isSubmitting}
+              className="bg-[#E10600] hover:bg-[#C60500] text-white font-bold"
+            >
+              {isSubmitting ? 'Configurando...' : 'Confirmar e Assumir Escuderia'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* SETUP-CHOICE-01A: Modal de Confirmação para Iniciar Nova Carreira com Arquivamento */}
+      <Dialog
+        open={showArchiveConfirmDialog}
+        onOpenChange={(open) => !isArchivingCareer && setShowArchiveConfirmDialog(open)}
+      >
+        <DialogContent className="bg-white border-[#E2E8F0] text-[#0F172A] shadow-xl max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-lg font-bold flex items-center gap-2 text-[#0F172A]">
+              <Sparkles className="w-5 h-5 text-blue-600" />
+              Iniciar Nova Carreira
+            </DialogTitle>
+            <DialogDescription className="text-xs text-[#64748B]">
+              Sua carreira atual com a{' '}
+              <strong className="text-[#0F172A]">{activeCareerTeam?.name}</strong> será arquivada
+              com segurança.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-3 py-2 text-xs">
+            <div className="p-3.5 rounded-xl bg-blue-50 border border-blue-200 text-blue-950 space-y-2">
+              <div className="font-bold flex items-center gap-1.5 text-blue-900">
+                <Shield className="w-4 h-4 text-blue-600 shrink-0" />
+                Preservação Total de Dados
+              </div>
+              <ul className="space-y-1 list-disc list-inside text-blue-800 text-[11px]">
+                <li>Nenhum dado é excluído ou reprocessado.</li>
+                <li>
+                  Resultados de corrida, pontuações e história da temporada 2026 oficial permanecem
+                  intactos no banco.
+                </li>
+                <li>
+                  Você poderá escolher livremente qualquer uma das 11 equipes oficiais ou criar a
+                  12ª escuderia.
+                </li>
+              </ul>
+            </div>
+            <p className="text-[11px] text-[#64748B]">
+              Deseja confirmar o arquivamento e prosseguir para a escolha de escuderia?
+            </p>
+          </div>
+
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button
+              variant="outline"
+              onClick={() => setShowArchiveConfirmDialog(false)}
+              disabled={isArchivingCareer}
+              className="border-[#CBD5E1] bg-white text-[#475569] hover:bg-[#F1F5F9]"
+            >
+              Cancelar
+            </Button>
+            <Button
+              onClick={handleStartNewCareer}
+              disabled={isArchivingCareer}
+              className="bg-blue-600 hover:bg-blue-700 text-white font-bold"
+            >
+              {isArchivingCareer ? 'Arquivando...' : 'Confirmar e Escolher Equipe'}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
